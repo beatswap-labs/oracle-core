@@ -61,6 +61,24 @@ FrontEnd (beatswap.io)
 
 ---
 
+
+## 📡 Canister ID
+
+| CANISTER               | ID                                 |
+| ---------------------- | ---------------------------------- |
+| ORACLE_CANISTER_ID     | cl3mf-syaaa-aaaab-qb5pa-cai        |
+| UNLOCK_CANISTER_ID     | h6d54-pyaaa-aaaab-qb5ra-cai        |
+| PLAY_CANISTER_ID       | hqbqu-uiaaa-aaaab-qb5qa-cai        |
+| MEMBER_CANISTER_ID     | cfzbn-jiaaa-aaaab-qb5oa-cai        |
+| MEMBERSNAP_CANISTER_ID | ccyhz-eqaaa-aaaab-qb5oq-cai        |
+| HOLDER_CANISTER_ID     | cq6qa-iaaaa-aaaab-qb5nq-cai        |
+| TRAFFIC_CANISTER_ID    | cm2kr-7aaaa-aaaab-qb5pq-cai        |
+| TRAFFIC2_CANISTER_ID   | gpjdd-xqaaa-aaaab-qb5uq-cai        |
+| TOKEN_CANISTER_ID      | eb7hz-ryaaa-aaaae-ab2iq-cai        |
+| TOKEN_ARC_CANISTER_ID  | dwj33-qiaaa-aaaae-ab5ga-cai        |
+
+---
+
 ## 🤝 Contributions
 
 Contributions are welcome! Please submit a pull request or open an issue for feature suggestions or bug reports.
