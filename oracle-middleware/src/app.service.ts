@@ -1336,8 +1336,8 @@ export class AppService {
 
 
     async addVerificationUnlockListTK(partnerIdx: number, idxList: any, id: string = ''): Promise<any> {
-        const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
         let res;
+        const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
 
         if(!OWNER_KEY){
             this.logger.error('Cannot find OWNER_KEY');
@@ -1488,6 +1488,11 @@ export class AppService {
     async addPrincipal(id: any, partnerIdx: number) {
         const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
 
+        if(!OWNER_KEY){
+            this.logger.error('Cannot find OWNER_KEY');
+            throw new Error('Cannot find OWNER_KEY');
+        }
+
         const now = moment().utc();
 
         try {
@@ -1525,6 +1530,13 @@ export class AppService {
 
 
     async iplMint(id: string, partnerIdx: number, mintType: string, amount: number) {
+        const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
+
+        if(!OWNER_KEY){
+            this.logger.error('Cannot find OWNER_KEY');
+            throw new Error('Cannot find OWNER_KEY');
+        }
+
         const now = moment().unix();
         
         try {
