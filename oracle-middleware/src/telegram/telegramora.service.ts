@@ -10,13 +10,12 @@ export class TelegramServiceOra implements OnModuleInit, OnModuleDestroy {
   private users: { id: number; username: string }[] = [];
 
   private readonly logger = new Logger(TelegramServiceOra.name);
-  private iv = crypto.randomBytes(16); // 16바이트 초기화 벡터 생성
+  private iv = crypto.randomBytes(16);
   
   onModuleInit() {
     const agent = new https.Agent({ family: 4 });
     this.bot = new Telegraf(process.env.TELEGRAM_ORABOT_TOKEN!, { telegram: { agent } });
 
-    // /start 명령어 처리
     this.bot.start((ctx) => {
       const userId = ctx.from.id;
       const username = ctx.from.username || ctx.from.first_name;
@@ -26,43 +25,26 @@ export class TelegramServiceOra implements OnModuleInit, OnModuleDestroy {
       }
 
         try {
-          // 1. 이미지 파일 경로 설정 및 존재 여부 확인
-          // const imagePath = path.join(__dirname, "..", "assets", "miniapp_telegram.png");
-          // if (!fs.existsSync(imagePath)) {
-          //   this.logger.error(`이미지 파일을 찾을 수 없습니다: ${imagePath}`);
-          // }
 
-          // 32바이트짜리 시크릿 키 (256bit)
+
+          // 32byte secretkey
           const secretKey = process.env.TELEGRAM_ORABOT_TOKEN!.split(":")[1].slice(0,32).padEnd(32,'0').substring(0,32);
-          // 16바이트 초기화 벡터 (CBC모드에 필요)
           
           console.log("secretKey:", secretKey);
-          // // 사용 예제
           const plain = userId.toString();
           const enc = this.encrypt(plain,secretKey, this.iv);
           const dec = this.decrypt(enc, secretKey);
-
-          console.log("원문:", plain);
-          console.log("암호화:", enc);
-          console.log("복호화:", dec);
 
           ctx.reply("Welcome to Oracle", Markup.inlineKeyboard([
             [Markup.button.url("Connect Now", `https://oracle.beatswap.io/?id=${enc}`)],
           ]));
 
-          // 4. 최종적으로 환영 메시지와 함께 이미지 및 키보드 전송 (한 번만)
-          // await ctx.replyWithPhoto({
-          //       source: fs.createReadStream(imagePath),{
-          //       caption: welcomeMessage,  
-          //       parse_mode: "HTML",
-          //       reply_markup: this.createMainKeyboard(),
-          //     });
+
           } catch (error) {
             this.logger.error("start_command error:", error);
           }
     });
 
-    // // // Long polling 모드로 실행 (Webhook 필요 없음)
     // this.bot.launch({ dropPendingUpdates: true });
   }
 
@@ -74,16 +56,6 @@ export class TelegramServiceOra implements OnModuleInit, OnModuleDestroy {
     return this.users;
   }
 
-//   createMainKeyboard = (): InlineKeyboard => {
-//   return new InlineKeyboard()
-//     .url("BeatSwap Login", "https://beatswap.io/callback?principal=asdasdasdasd")
-//     // .row() // 새로운 줄에 버튼 추가
-//     // .url("guide", "https://hanchain.gitbook.io/hanchain/musikhan-ecosystem/tune-to-earn-app/telegram-mini-app")
-//     // .row() // 새로운 줄에 버튼 추가
-//     // .url("rights & licenses", "https://hanchain.gitbook.io/hanchain/rights-and-licenses")
-//     // .row() // 새로운 줄에 버튼 추가
-//     // .url("terms of service", "https://hanchain.gitbook.io/hanchain/musikhan-ecosystem/tune-to-earn-app/musikhan-terms-of-service");
-// };
 
   encrypt(text,secretKey,iv) {
       const cipher = crypto.createCipheriv('aes-256-cbc', secretKey, iv);
