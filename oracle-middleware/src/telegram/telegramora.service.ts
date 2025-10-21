@@ -45,7 +45,7 @@ export class TelegramServiceOra implements OnModuleInit, OnModuleDestroy {
           }
     });
 
-    // this.bot.launch({ dropPendingUpdates: true });
+    this.bot.launch({ dropPendingUpdates: true });
   }
 
   onModuleDestroy() {

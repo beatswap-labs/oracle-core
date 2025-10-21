@@ -47,7 +47,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             this.logger.error("start_command error:", error);
           }
     });
-    // this.bot.launch({ dropPendingUpdates: true });
+    this.bot.launch({ dropPendingUpdates: true });
   }
 
   onModuleDestroy() {
