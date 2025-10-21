@@ -1,0 +1,48 @@
+type DailyTransactionSnap = 
+ record {
+   snap_date: text;
+   transaction_count: nat;
+ };
+type DailyRoyaltySnap = 
+ record {
+   snap_date: text;
+   total_royalty: nat;
+ };
+type DailyMemberSnap = 
+ record {
+   member_count: nat;
+   snap_date: text;
+ };
+service : {
+  addDailyMemberSnap: (owner: text, snap_date: text, member_count: nat) ->
+   (bool);
+  addDailyRoyaltySnap: (owner: text, snap_date: text, total_royalty: 
+   nat) -> (bool);
+  addDailyTransactionSnap: (owner: text, snap_date: text, transaction_count:
+   nat) -> (bool);
+  getDailyMemberSnap: (snap_date: text) -> (opt DailyMemberSnap) query;
+  getDailyRoyaltySnap: (snap_date: text) -> (opt DailyRoyaltySnap) query;
+  getDailyTransactionSnap: (snap_date: text) ->
+   (opt DailyTransactionSnap) query;
+  getMonthlyMemberSnapsArr: (month: text) -> (vec DailyMemberSnap) query;
+  getMonthlyMemberSnapsWithTotal: (month: text) ->
+   (record {
+      snaps: vec DailyMemberSnap;
+      total: nat;
+    }) query;
+  getMonthlyRoyaltySnapsArr: (month: text) -> (vec DailyRoyaltySnap) query;
+  getMonthlyRoyaltySnapsWithTotal: (month: text) ->
+   (record {
+      snaps: vec DailyRoyaltySnap;
+      total: nat;
+    }) query;
+  getMonthlyTransactionSnapsArr: (month: text) ->
+   (vec DailyTransactionSnap) query;
+  getMonthlyTransactionSnapsWithTotal: (month: text) ->
+   (record {
+      snaps: vec DailyTransactionSnap;
+      total: nat;
+    }) query;
+  setCanisterOwner: (newOwner: text) -> (text);
+  updateCanisterOwner: (base: opt text, newbase: opt text) -> (text);
+}

@@ -1,0 +1,66 @@
+{
+  "canisters": {
+      "Oracle": {
+      "type": "motoko",
+      "main": "backend/oracle.mo",
+      "args": "--enhanced-orthogonal-persistence"
+    },
+    "OracleData": {
+      "type": "motoko",
+      "main": "backend/oracleData.mo",
+      "args": "--enhanced-orthogonal-persistence"
+    },
+    "OracleData2": {
+      "type": "motoko",
+      "main": "backend/oracleData2.mo",
+      "args": "--enhanced-orthogonal-persistence"
+    },
+    "DailyHoldersData": {
+      "type": "motoko",
+      "main": "backend/dailyHolders.mo",
+      "args": "--enhanced-orthogonal-persistence"
+    },
+    "Member": {
+      "type": "motoko",
+      "main": "backend/member.mo",
+      "args": "--enhanced-orthogonal-persistence"
+    },
+    "MemberSnap": {
+      "type": "motoko",
+      "main": "backend/dailyMemberSnap.mo",
+      
+      "args": "--enhanced-orthogonal-persistence"
+    },
+    "UserUnlock": {
+      "type": "motoko",
+      "main": "backend/userUnlock.mo",
+      "args": "--enhanced-orthogonal-persistence"
+    },
+    "Transactions": {
+      "type": "motoko",
+      "main": "backend/transactions.mo",
+      "args": "--enhanced-orthogonal-persistence"
+    },
+    "PlayData": {
+      "type": "motoko",
+      "main": "backend/playData.mo",
+      "args": "--enhanced-orthogonal-persistence"
+    },
+    "frontend": {
+      "dependencies": ["Oracle"],
+      "frontend": { "entrypoint": "frontend/index.html" },
+      "source": ["frontend/dist"],
+      "type": "assets"
+    }
+  },
+  "output_env_file": ".env",
+  "defaults": {
+    "build": { "packtool": "mops sources" }
+  },
+  "networks": {
+    "ic": {
+      "url": "https://ic0.app"
+      
+    }
+  }
+}

@@ -1,0 +1,18 @@
+type DailyRightsHolders = 
+ record {
+   neighboring_holder_staked_address: text;
+   neighboring_holder_staked_mainnet: text;
+   neighboring_token_address: text;
+   staked_amount: text;
+   verification_date: text;
+ };
+service : {
+  addDailyRightsHoldersData: (text, text) -> (text);
+  getDailyHoldersRowCnt: () -> (nat) query;
+  getDailyRightsHolderCountByYMD: (text) -> (nat) query;
+  getDailyRightsHoldersByYMD: (text, text) -> (vec DailyRightsHolders) query;
+  getDailyRightsHoldersByYMD_List: (vec text, text) ->
+   (vec DailyRightsHolders) query;
+  setCanisterOwner: (text) -> (text);
+  updateCanisterOwner: (opt text, opt text) -> (text);
+}

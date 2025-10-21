@@ -1,0 +1,24 @@
+type Transactions = 
+ record {
+   amount: nat64;
+   from: text;
+   index: nat;
+   mType: text;
+   method: text;
+   timestamp: text;
+   to: text;
+ };
+type List = 
+ opt record {
+       Transactions;
+       List;
+     };
+service : {
+  addTransaction: (text, Transactions) -> (nat);
+  addTransactions: (text, List) -> (nat);
+  getTransactionsByYm: (text) -> (vec Transactions) query;
+  getTransactionsCountByYm: (text) -> (nat) query;
+  getTransactionsIdxCnt: () -> (nat) query;
+  setCanisterOwner: (text) -> (text);
+  updateCanisterOwner: (opt text, opt text) -> (text);
+}

@@ -1,0 +1,21 @@
+type VerificationUnlockList = 
+ record {
+   icp_year_month: text;
+   idx: nat;
+   partner_idx: nat;
+   unlock_date: text;
+   unlocked_at: text;
+   unlocked_ts: nat64;
+ };
+service : {
+  addVerificationUnlockListData: (text, text) -> (text);
+  getKCountByYm: (text) -> (nat) query;
+  getKEventsByYm: (text) -> (vec VerificationUnlockList) query;
+  getOracleDataRowCnt: () -> (nat) query;
+  getPCountByYm: (text) -> (nat) query;
+  getPEventsByYm: (text) -> (vec VerificationUnlockList) query;
+  getTCountByYm: (text) -> (nat) query;
+  getTEventsByYm: (text) -> (vec VerificationUnlockList) query;
+  setCanisterOwner: (text) -> (text);
+  updateCanisterOwner: (opt text, opt text) -> (text);
+}

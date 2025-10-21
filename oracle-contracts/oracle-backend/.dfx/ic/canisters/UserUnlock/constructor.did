@@ -1,0 +1,14 @@
+type MemberUnlockDate = 
+ record {
+   principle: text;
+   unlock_idxs: nat;
+ };
+service : {
+  addMemberUnlock: (text, text, MemberUnlockDate) -> (nat);
+  getAllMemberUnlockKeys: () -> (vec text) query;
+  getMemberUnlockByKey: (text) -> (vec MemberUnlockDate) query;
+  getMemberUnlockCountByKey: (text) -> (nat) query;
+  getUserUnlockRowCnt: () -> (nat) query;
+  setCanisterOwner: (text) -> (text);
+  updateCanisterOwner: (opt text, opt text) -> (text);
+}

@@ -1,0 +1,3 @@
+service : {
+  mintForUser: (to_principal: principal, amount: nat) -> (text);
+}

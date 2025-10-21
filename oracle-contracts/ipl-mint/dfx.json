@@ -1,0 +1,21 @@
+{
+    "canisters": {
+      "icp_ledger_canister": {
+        "type": "custom",
+        "candid": "path/to/ledger.did",
+        "wasm": "path/to/ledger.wasm"
+    },
+      "ipl_mint_canister": {
+        "main": "src/icp_ledger_canister/main.mo",
+        "type": "motoko"
+      }
+},
+"defaults": {
+"build": {
+"args": "",
+"packtool": ""
+}
+},
+"output_env_file": ".env",
+"version": 1
+}

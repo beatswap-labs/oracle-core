@@ -1,0 +1,8 @@
+{
+  "icp_ledger_canister": {
+    "ic": "eb7hz-ryaaa-aaaae-ab2iq-cai"
+  },
+  "ipl_mint_canister": {
+    "ic": "eg6bn-4aaaa-aaaae-ab2ia-cai"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "DailyHoldersData": {
+    "ic": "cq6qa-iaaaa-aaaab-qb5nq-cai"
+  },
+  "Member": {
+    "ic": "cfzbn-jiaaa-aaaab-qb5oa-cai"
+  },
+  "MemberSnap": {
+    "ic": "ccyhz-eqaaa-aaaab-qb5oq-cai"
+  },
+  "Oracle": {
+    "ic": "cl3mf-syaaa-aaaab-qb5pa-cai"
+  },
+  "OracleData": {
+    "ic": "cm2kr-7aaaa-aaaab-qb5pq-cai"
+  },
+  "OracleData2": {
+    "ic": "gpjdd-xqaaa-aaaab-qb5uq-cai"
+  },
+  "PlayData": {
+    "ic": "hqbqu-uiaaa-aaaab-qb5qa-cai"
+  },
+  "Transactions": {},
+  "UserUnlock": {
+    "ic": "h6d54-pyaaa-aaaab-qb5ra-cai"
+  },
+  "backend": {},
+  "frontend": {
+    "ic": "hzc3i-caaaa-aaaab-qb5rq-cai"
+  }
+}

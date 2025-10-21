@@ -1,0 +1,15 @@
+type UserPlayData = 
+ record {
+   music_idx: nat;
+   partner_idx: nat;
+   play_at: text;
+   user: text;
+ };
+service : {
+  addUserPlayData: (text, UserPlayData) -> (bool);
+  getPlayDataRowCnt: () -> (nat) query;
+  getUserPlayDataByYMD: (text) -> (vec UserPlayData) query;
+  getUserPlayDataCountByYMD: (text) -> (nat) query;
+  setCanisterOwner: (text) -> (text);
+  updateCanisterOwner: (opt text, opt text) -> (text);
+}

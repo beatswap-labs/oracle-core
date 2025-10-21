@@ -1,0 +1,15 @@
+// Version: 1.0.0
+type List<T> = ?(T, List<T>);
+type Member =
+  {
+    created_at : Text;
+    idx : Nat;
+    partner_idx : Nat;
+    principle : Text;
+    user : Text
+  };
+actor {
+  stable var MemberData : ?(Member, List<Member>);
+  stable var MemberIdxCounter : Nat;
+  stable var canister_owner : ?Text
+};

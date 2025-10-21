@@ -1,0 +1,115 @@
+type VerificationUnlockCount = 
+ record {
+   idx: nat;
+   partner_idx: nat;
+   unlock_count: nat;
+ };
+type Partner = 
+ record {
+   partner_idx: nat;
+   partner_name: text;
+ };
+type MusicWorkInfoView = 
+ record {
+   album_idx: nat;
+   arranger: text;
+   artist: text;
+   composer: text;
+   genre_idx: nat;
+   icp_neighboring_token_address: text;
+   idx: nat;
+   lyricist: text;
+   music_publisher: text;
+   musician: text;
+   op_neighboring_token_address: text;
+   record_label: text;
+   registration_date: text;
+   release_date: text;
+   requester_principal: text;
+   title: text;
+   unlock_total_count: nat;
+   verification_status: text;
+   work_type: text;
+ };
+type MusicWorkInfo = 
+ record {
+   album_idx: nat;
+   arranger: text;
+   artist: text;
+   composer: text;
+   genre_idx: nat;
+   icp_neighboring_token_address: text;
+   idx: nat;
+   lyricist: text;
+   music_file_path: text;
+   music_publisher: text;
+   musician: text;
+   one_min_path: text;
+   op_neighboring_token_address: text;
+   record_label: text;
+   registration_date: text;
+   release_date: text;
+   requester_principal: text;
+   song_thumbnail: text;
+   title: text;
+   unlock_total_count: nat;
+   verification_status: text;
+   work_type: text;
+ };
+type MusicVerificationList = 
+ record {
+   idx: nat;
+   requester_principal: text;
+   verification_status: bool;
+   verification_status_updated_at: text;
+ };
+type GenreId = 
+ record {
+   genre_idx: nat;
+   genre_name: text;
+ };
+service : {
+  addDailyIcrcMinter: (text, text, nat64) -> (text);
+  addGenre: (text, nat, text) -> (text);
+  addMusicVerificationList: (text, nat, text, bool, text) -> ();
+  addMusicWorkInfo: (opt text, MusicWorkInfo) -> ();
+  addPartner: (text, nat, text) -> (text);
+  addRequesterId: (text, text, bool) -> (text);
+  deleteMusicWorkInfo: (opt text, nat) -> (text);
+  firstDataSet: (text) -> (text);
+  getGenres: () -> (vec GenreId) query;
+  getMusicContractAddress: () -> (text) query;
+  getMusicInfoByIdx: (nat) -> (opt MusicWorkInfoView) query;
+  getMusicInfoByPaykhanData: (text, text) -> (text);
+  getMusicVerificationLists: () -> (vec MusicVerificationList) query;
+  getMusicWorkInfos: () -> (vec MusicWorkInfoView) query;
+  getMusicWorkInfosByGenre: (nat) -> (vec MusicWorkInfoView) query;
+  getMusicWorkInfosByGenreOwner: (nat, text) -> (vec MusicWorkInfo) query;
+  getMusicWorkInfosByOwner: (text) -> (vec MusicWorkInfo) query;
+  getPartners: () -> (vec Partner) query;
+  getRWAContributorsCnt: () -> (nat) query;
+  getRequesterIds: () ->
+   (vec record {
+          can_approve: bool;
+          requester_name: text;
+        }) query;
+  getTotalVerificationUnlockCount: (nat) -> (nat) query;
+  getTransactionsCnt: () -> (nat) query;
+  getUnlockedAccumulated: () -> (nat64) query;
+  getVerificationUnlockCounts: (nat) -> (vec VerificationUnlockCount) query;
+  incrementMusicWorkInfoUnlockCount: (nat, text) -> (text);
+  incrementRWAContributorsCnt: (text) -> (nat);
+  incrementTransactionsCnt: (text) -> (nat);
+  incrementUnlockedAccumulated: (nat64, text) -> (nat64);
+  incrementVerificationUnlockCount: (nat, nat, text) -> (text);
+  setCanisterOwner: (text) -> (text);
+  updateCanisterOwner: (opt text, opt text) -> (text);
+  updateGenreName: (text, nat, text) -> (text);
+  updateMusicFilePathByOwner: (text, text) -> (text);
+  updateMusicWorkInfo: (opt text, MusicWorkInfo) -> (text);
+  updateOneMinPathByOwner: (text, text) -> (text);
+  updateRWAContributorsCnt: (text, nat) -> (text);
+  updateTransactionsCnt: (text, nat) -> (text);
+  updateUnlockedAccumulated: (text, nat64) -> (text);
+  whoami: () -> (principal) query;
+}

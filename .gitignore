@@ -1,0 +1,61 @@
+# compiled output
+oracle-middleware/dist
+oracle-middleware/node_modules
+oracle-middleware/build
+
+# Logs
+oracle-middleware/logs
+oracle-middleware/*.log
+oracle-middleware/npm-debug.log*
+oracle-middleware/pnpm-debug.log*
+oracle-middleware/yarn-debug.log*
+oracle-middleware/yarn-error.log*
+oracle-middleware/lerna-debug.log*
+
+# OS
+oracle-middleware/.DS_Store
+
+# Tests
+oracle-middleware/coverage
+oracle-middleware/.nyc_output
+
+# IDEs and editors
+oracle-middleware/.idea
+oracle-middleware/.project
+oracle-middleware/.classpath
+oracle-middleware/.c9/
+oracle-middleware/*.launch
+oracle-middleware/.settings/
+oracle-middleware/*.sublime-workspace
+
+# IDE - VSCode
+oracle-middleware/.vscode/*
+oracle-middleware/!.vscode/settings.json
+oracle-middleware/!.vscode/tasks.json
+oracle-middleware/!.vscode/launch.json
+oracle-middleware/!.vscode/extensions.json
+
+# dotenv environment variable files
+oracle-middleware/.env
+oracle-middleware/.env.development.local
+oracle-middleware/.env.test.local
+oracle-middleware/.env.production.local
+oracle-middleware/.env.local
+oracle-contracts/oracle-backend/.env
+oracle-contracts/ipl-mint/.env
+
+# temp directory
+oracle-middleware/.temp
+oracle-middleware/.tmp
+
+# Runtime data
+oracle-middleware/pids
+oracle-middleware/*.pid
+oracle-middleware/*.seed
+oracle-middleware/*.pid.lock
+
+# Diagnostic reports (https://nodejs.org/api/report.html)
+oracle-middleware/report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
+
+oracle-contracts/oracle-backend/BUILD.md
+oracle-contracts/oracle-backend/mops.toml

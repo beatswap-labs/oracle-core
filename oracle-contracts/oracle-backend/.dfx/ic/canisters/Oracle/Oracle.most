@@ -1,0 +1,60 @@
+// Version: 1.0.0
+type DailyIcrcMinter = {minted_amount : Nat64; minted_at : Text};
+type GenreId = {genre_idx : Nat; genre_name : Text};
+type List<T> = ?(T, List<T>);
+type MusicVerificationList =
+  {
+    idx : Nat;
+    requester_principal : Text;
+    verification_status : Bool;
+    verification_status_updated_at : Text
+  };
+type MusicWorkInfo =
+  {
+    album_idx : Nat;
+    arranger : Text;
+    artist : Text;
+    composer : Text;
+    genre_idx : Nat;
+    icp_neighboring_token_address : Text;
+    idx : Nat;
+    lyricist : Text;
+    music_file_path : Text;
+    music_publisher : Text;
+    musician : Text;
+    one_min_path : Text;
+    op_neighboring_token_address : Text;
+    record_label : Text;
+    registration_date : Text;
+    release_date : Text;
+    requester_principal : Text;
+    song_thumbnail : Text;
+    title : Text;
+    unlock_total_count : Nat;
+    verification_status : Text;
+    work_type : Text
+  };
+type Partner = {partner_idx : Nat; partner_name : Text};
+type Requester =
+  {can_approve : Bool; requester_name : Text; requester_principal : Text};
+type VerificationUnlockCount =
+  {idx : Nat; partner_idx : Nat; unlock_count : Nat};
+actor {
+  stable var DailyIcrcMinterData : ?(DailyIcrcMinter, List<DailyIcrcMinter>);
+  stable var MusicVerificationListData :
+    ?(MusicVerificationList, List<MusicVerificationList>);
+  stable var MusicWorkInfoData : ?(MusicWorkInfo, List<MusicWorkInfo>);
+  stable var Partner : ?(Partner, List<Partner>);
+  stable var VerificationUnlockCountDataK :
+    ?(VerificationUnlockCount, List<VerificationUnlockCount>);
+  stable var VerificationUnlockCountDataP :
+    ?(VerificationUnlockCount, List<VerificationUnlockCount>);
+  stable var VerificationUnlockCountDataT :
+    ?(VerificationUnlockCount, List<VerificationUnlockCount>);
+  stable var canister_owner : ?Text;
+  stable var genreData : ?(GenreId, List<GenreId>);
+  stable var requesterIdData : ?(Requester, List<Requester>);
+  stable var rwaContributorsCnt : Nat;
+  stable var transactionsCnt : Nat;
+  stable var unlockedAccumulatedData : {unlocked_acc : Nat64}
+};

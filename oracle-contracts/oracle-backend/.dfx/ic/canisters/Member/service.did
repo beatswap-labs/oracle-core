@@ -1,0 +1,19 @@
+type Member = 
+ record {
+   created_at: text;
+   idx: nat;
+   partner_idx: nat;
+   principle: text;
+   user: text;
+ };
+service : {
+  addMember: (text, Member) -> (nat);
+  addMembers: (text, vec Member) -> (nat);
+  getAllMembers: (text, nat, nat) -> (vec Member);
+  getMemberByIdx: (nat) -> (opt Member) query;
+  getMemberByPartnerIdxAndUser: (nat, text) -> (opt Member) query;
+  getMemberByPrinciple: (text) -> (opt Member) query;
+  getMemberRowCnt: () -> (nat) query;
+  setCanisterOwner: (text) -> (text);
+  updateCanisterOwner: (opt text, opt text) -> (text);
+}
