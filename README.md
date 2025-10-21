@@ -62,7 +62,7 @@ FrontEnd (beatswap.io)
 ---
 
 
-## 📡 Canister ID
+## 📡 CANISTER Info
 
 | CANISTER NAME       | CANISTER ID                        |
 | --------------------| ---------------------------------- |
