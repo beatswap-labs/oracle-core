@@ -9,7 +9,6 @@ export class BatchService {
 
     constructor(private readonly appService: AppService) {};
 
-    // @Cron('0 */1 * * * *')
     @Cron('0 10 0 * * *') //Daily 00:10
     async addDailyRightsHolder() {
         const now = moment().tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss');

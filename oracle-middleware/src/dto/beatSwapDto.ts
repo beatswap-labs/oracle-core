@@ -7,5 +7,6 @@ export class beatSwapDto {
     today: Date;
     date: string;
     month: string;
+    startIdx: number;
     cnt: number;
 }

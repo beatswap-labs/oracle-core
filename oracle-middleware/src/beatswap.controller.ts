@@ -87,6 +87,15 @@ export class BeatSwapController {
             return this.appService.getTokenTransactionScan(page);
     }
 
+    //token transaction
+    @Post('getMigration')
+    async getMigration(@Body() body: beatSwapDto) {
+        this.logger.log(`getTokenTransaction Call::: page: ${body.startIdx}, cnt: ${body.cnt}`);
+
+
+            return this.appService.getMigration(body.startIdx, body.cnt);
+    }
+
 
     //addPrincipal
     @Post('addPrincipal')

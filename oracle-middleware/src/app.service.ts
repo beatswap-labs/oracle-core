@@ -1545,12 +1545,16 @@ export class AppService {
                 partnerIdx = 1; // ton
                 const resId = await axios.get(`https://paykhan.org/nftAudio/getPaykhanIdByAddress?address=${id}`);
                 id = resId.data.replace(/[^a-zA-Z0-9._@-]/g, 'd');
-                console.log(`paykhan id ${id}`);
+                if(id === '' || id === null) {
+                    id = "kadmin2";
+                    this.logger.log(`No paykhan id replace admin -> ${id}`);
+                }
+                this.logger.log(`paykhan id ${id}`);
             }
 
             const principal = await this.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
             
-            console.log(principal[0].principle);
+            this.logger.log(principal[0].principle);
             const encoder = new TextEncoder();
             const nowMs = Date.now(); 
 
@@ -1570,7 +1574,7 @@ export class AppService {
             const userPrincipal = Principal.fromText(principal[0].principle);
 
             this.logger.log(`userPrincipal :: ${userPrincipal.toText()}`);
-            const stakerInfo = await this.mintActor.mintForUser(userPrincipal, Math.floor(amount), [memo], [nowNs])
+            const stakerInfo = await this.mintActor.mintForUser(OWNER_KEY, userPrincipal, Math.floor(amount), [memo], [nowNs])
             
             return stakerInfo;
 
@@ -1742,7 +1746,7 @@ export class AppService {
                                 this.logger.log(`principal ${userPrincipal} amount ${amount}, memo ${memo}, nowNs ${nowNs}`);
                                 this.logger.log(`royaltyIdList ${royaltyIdList}`); 
                                 await Promise.race([
-                                    this.mintActor.mintForUser(userPrincipal, amount, [memo], [nowNs]),
+                                    this.mintActor.mintForUser(OWNER_KEY, userPrincipal, amount, [memo], [nowNs]),
                                 new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout mintForUser')), 5000))]);
                                 for(let idx = 0; idx < royaltyIdList.length-1; idx++) {
                                     try{
@@ -1755,7 +1759,7 @@ export class AppService {
                                         const royaltyNowNs = BigInt(nowMs) * 1_000_000n;
                                         this.logger.log(`Royalty principal ${royaltyUserPrincipal} amount ${royaltyAmount}, memo ${memo}, nowNs ${royaltyNowNs}`);
                                         await Promise.race([
-                                            this.mintActor.mintForUser(royaltyUserPrincipal, royaltyAmount, [memo], [nowNs]),
+                                            this.mintActor.mintForUser(OWNER_KEY, royaltyUserPrincipal, royaltyAmount, [memo], [nowNs]),
                                         new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout mintForUser')), 5000))]);
                                     } catch (error) {
                                         this.logger.error(`mint: ${error} :: royaltyId ${royaltyIdList[idx]}`);
@@ -1820,7 +1824,7 @@ export class AppService {
                                 this.logger.log(`principal ${userPrincipal} amount ${amount}, memo ${memo}, nowNs ${nowNs}`);
                                 this.logger.log(`royaltyIdList ${royaltyIdList}`); 
                                 await Promise.race([
-                                    this.mintActor.mintForUser(userPrincipal, amount, [memo], [nowNs]),
+                                    this.mintActor.mintForUser(OWNER_KEY, userPrincipal, amount, [memo], [nowNs]),
                                 new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout mintForUser')), 5000))]);
                                 for(let j = 0; j < royaltyIdList.length; j++) {
                                     try{
@@ -1833,7 +1837,7 @@ export class AppService {
                                         const royaltyNowNs = BigInt(nowMs) * 1_000_000n;
                                         this.logger.log(`Royalty principal ${royaltyUserPrincipal} amount ${royaltyAmount}, memo ${memo}, nowNs ${royaltyNowNs}`);
                                         await Promise.race([
-                                            this.mintActor.mintForUser(royaltyUserPrincipal, royaltyAmount, [memo], [nowNs]),
+                                            this.mintActor.mintForUser(OWNER_KEY, royaltyUserPrincipal, royaltyAmount, [memo], [nowNs]),
                                         new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout mintForUser')), 5000))]);
                                     } catch (error) {
                                         this.logger.error(`mint: ${error} :: royaltyId ${royaltyIdList[j]}`);
@@ -2013,5 +2017,20 @@ export class AppService {
             throw lastError;
         }
     }
+    }
+
+
+    async getMigration(startIdx: number, cnt: number): Promise<any> {
+        const GetTransactionLength = ({
+                    start: startIdx-1, 
+                    length: cnt
+            });
+
+            const transaction = await this.tokenArcActor.get_transactions(GetTransactionLength);
+            const transactionList = this.parseTransactions(transaction.transactions, "scan", startIdx-1);
+            this.logger.log(`totalTransaction: ${transactionList}`);
+        
+
+        return transactionList;
     }
 }
