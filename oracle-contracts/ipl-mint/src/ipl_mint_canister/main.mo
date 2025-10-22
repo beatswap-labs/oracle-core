@@ -62,8 +62,8 @@ persistent actor {
   };
 
   /// mint API
-  public shared ({ caller }) func mintForUser(owner:Text, to_principal : Principal, amount : Nat, memo: ?Blob, created_at_time: ?Nat64) : async Text {
-    if (canister_owner != ?owner) {
+  public shared ({ caller }) func mintForUser(owner_id:Text, to_principal : Principal, amount : Nat, memo: ?Blob, created_at_time: ?Nat64) : async Text {
+    if (canister_owner != ?owner_id) {
       return "Unauthorized access attempt";
     };
 

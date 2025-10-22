@@ -1,3 +1,6 @@
 service : {
-  mintForUser: (to_principal: principal, amount: nat) -> (text);
+  mintForUser: (owner: text, to_principal: principal, amount: nat, memo:
+   opt blob, created_at_time: opt nat64) -> (text);
+  setCanisterOwner: (newOwner: text) -> (text);
+  updateCanisterOwner: (base: opt text, newbase: opt text) -> (text);
 }

@@ -1,5 +1,0 @@
-service : {
-  /// mint API
-  mintForUser: (to_principal: principal, amount: nat, memo: opt blob,
-   created_at_time: opt nat64) -> (text);
-}

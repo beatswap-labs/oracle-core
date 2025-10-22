@@ -1,5 +1,7 @@
 service : {
   /// mint API
-  mintForUser: (to_principal: principal, amount: nat, memo: opt blob,
-   created_at_time: opt nat64) -> (text);
+  mintForUser: (owner_id: text, to_principal: principal, amount: nat, memo:
+   opt blob, created_at_time: opt nat64) -> (text);
+  setCanisterOwner: (newOwner: text) -> (text);
+  updateCanisterOwner: (base: opt text, newbase: opt text) -> (text);
 }

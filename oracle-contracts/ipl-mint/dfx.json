@@ -6,7 +6,7 @@
         "wasm": "path/to/ledger.wasm"
     },
       "ipl_mint_canister": {
-        "main": "src/icp_ledger_canister/main.mo",
+        "main": "src/ipl_mint_canister/main.mo",
         "type": "motoko"
       }
 },
