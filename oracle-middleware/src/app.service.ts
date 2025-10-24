@@ -3,7 +3,6 @@ import { HttpAgent, Actor } from '@dfinity/agent';
 import { Principal } from "@dfinity/principal";
 import { ConfigService } from '@nestjs/config';
 import { TelegramService } from './telegram/telegram.service'; 
-import { TelegramServiceOra } from './telegram/telegramora.service';
 import { idlFactory as oracleIdlFactory } from "./motoko/oracle.did.js";
 import { idlFactory as unlockIdlFactory } from "./motoko/unlock.did.js";
 import { idlFactory as playIdlFactory } from "./motoko/play.did.js";
@@ -87,7 +86,7 @@ interface rightHolderReq {
 export class AppService {
 
 
-    constructor(private configService: ConfigService, private telegramService: TelegramService, private telegramServiceOra: TelegramServiceOra) {}
+    constructor(private configService: ConfigService, private telegramService: TelegramService) {}
     
 
     private cachedPrice: number;
@@ -895,7 +894,7 @@ export class AppService {
             this.logger.log(`totalSupply: ${totalSupply}`);
             this.lastFetchTotalSupplyTime = now;
 
-            this.cachedTotalSupply = Number(totalSupply);
+            this.cachedTotalSupply = Number(totalSupply) - 249999965;
         }
 
         return {
@@ -1022,11 +1021,6 @@ export class AppService {
         }
 
         return this.cachedScan;
-
-
-        
-        // return sorted;
-
     }
 
     async getRWAContributors(): Promise<string> {
@@ -1064,6 +1058,10 @@ export class AppService {
 
             const results = await Promise.all(
                 partnerIdxList.map(async (idx) => {
+                    if(idx === 1){
+                        const resId = await axios.get(`https://paykhan.org/nftAudio/getPaykhanIdByAddress?address=${id}`);
+                        id = resId.data.replace(/[^a-zA-Z0-9._@-]/g, 'd');
+                    } 
                     const res = await this.memberActor.getMemberByPartnerIdxAndUser(idx, id);
                     if (res && res.length > 0) {
                         const m = res[0];
@@ -1087,33 +1085,6 @@ export class AppService {
         }
 
         
-
-        // return principal;
-    }
-
-
-    async getPrincipalByOraId(partnerIdx: number, id: string): Promise<any> {
-        if(partnerIdx === 2) {
-            const secretKey = process.env.TELEGRAM_ORABOT_TOKEN!.split(":")[1].slice(0,32).padEnd(32,'0').substring(0,32);
-            id = this.telegramServiceOra.decrypt(id,secretKey);
-            console.log(`decrypted id :: ${id}`);
-        }
-        let principal = await this.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
-        if(principal[0] === undefined){
-            await this.addPrincipal(id, partnerIdx);
-            principal = await this.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
-        }
-        console.log(principal[0].principle);
-        const ipl = await this.tokenActor.icrc1_balance_of({ owner: Principal.fromText(principal[0].principle), subaccount: []});
-        console.log(ipl);
-        
-
-        return {
-            partnerIdx: Number(principal[0].partner_idx),
-            principal: principal[0].principle,
-            balance: Number(ipl),
-            created_at: principal[0].created_at
-        };
 
         // return principal;
     }
@@ -2021,16 +1992,36 @@ export class AppService {
 
 
     async getMigration(startIdx: number, cnt: number): Promise<any> {
+        let allTx: any[] = [];
         const GetTransactionLength = ({
                     start: startIdx-1, 
                     length: cnt
             });
 
             const transaction = await this.tokenArcActor.get_transactions(GetTransactionLength);
-            const transactionList = this.parseTransactions(transaction.transactions, "scan", startIdx-1);
-            this.logger.log(`totalTransaction: ${transactionList}`);
-        
+            let mainList = this.parseTransactions(transaction.transactions, "scan", GetTransactionLength.start);
+            allTx = [...mainList];
+            this.logger.log(`totalTransaction: ${allTx.length}`);
+            if(allTx.length < cnt && allTx.length > 0) {
+                this.logger.log(`Archive LastIndex: ${allTx[allTx.length-1].index}`);
+                const GetTransactionLengthLive = ({
+                    start: allTx[allTx.length-1].index, 
+                    length: cnt - allTx.length
+                });
 
-        return transactionList;
+                const transactionLive = await this.tokenActor.get_transactions(GetTransactionLengthLive);
+
+                const archiveList = this.parseTransactions(transactionLive.transactions, "scan", Number(GetTransactionLengthLive.start));
+                allTx = [...allTx, ...archiveList];
+            } else {
+                this.logger.log(`Archive End Live Data`);
+                const transactionLive = await this.tokenActor.get_transactions(GetTransactionLength);
+
+                const archiveList = this.parseTransactions(transactionLive.transactions, "scan", Number(GetTransactionLength.start));
+                allTx = [...allTx, ...archiveList];
+            }
+            
+
+        return allTx;
     }
 }

@@ -86,20 +86,6 @@ export class AppController {
         return await this.appService.getVerificationUnlockListsByDateTs(body.partnerIdx, body.startTs, body.endTs);
     }
 
-    //Music Add
-    // @Post('addMusicWorkInfo')
-    // async addMusicWorkInfo(@Body() body: oracleDto) {
-    //     this.logger.log(`addMusicWorkInfo Call title : ${body.title}`);
-
-    //     try {
-    //         await this.appService.addMusicWorkInfo(body);
-    //     } catch(e) {
-    //         console.log("error", e.getMessage);
-    //         return { success: false };
-    //     }
-    //     return { success: true };
-    // }
-
     @Post('updateMusicWorkInfo')
     async updateMusicWorkInfo(@Body() body: oracleDto) {
         this.logger.log(`updateMusicWorkInfo Call title : ${body.idxList} / ${body.unlock_count_list}`);
@@ -263,17 +249,9 @@ export class AppController {
         return now;
     }
 
-    //getPrincipalById
-    @Post('getPrincipalById')
-    async getPrincipalById(@Body() body: oracleDto) {
-        this.logger.log(`getPrincipalById Call ::: ${body.partnerIdx} /  ${body.id}`);
-        return this.appService.getPrincipalByOraId(body.partnerIdx, body.id);
-    }
-
-
     @Post('addMint')
     async addMint(@Body() body: oracleDto) {
-        this.logger.log(`addMint Call :: Tpye :: ${body.mintType} ID :: ${body.id} partnerIdx :: ${body.partnerIdx} amount :: ${body.amount}`);
+        this.logger.log(`addMint Call :: Type :: ${body.mintType} ID :: ${body.id} partnerIdx :: ${body.partnerIdx} amount :: ${body.amount}`);
         try {
             const response = await this.appService.iplMint(body.id, body.partnerIdx, body.mintType, body.amount);
             return { success: true , response};

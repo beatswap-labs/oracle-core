@@ -36,11 +36,6 @@
       "main": "backend/userUnlock.mo",
       "args": "--enhanced-orthogonal-persistence"
     },
-    "Transactions": {
-      "type": "motoko",
-      "main": "backend/transactions.mo",
-      "args": "--enhanced-orthogonal-persistence"
-    },
     "PlayData": {
       "type": "motoko",
       "main": "backend/playData.mo",

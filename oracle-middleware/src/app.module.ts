@@ -6,7 +6,6 @@ import { ConfigModule } from '@nestjs/config';
 import { AppService } from './app.service';
 import { BatchService } from './batch/batch.service';
 import { TelegramService } from './telegram/telegram.service';
-import { TelegramServiceOra } from './telegram/telegramora.service';
 
 @Module({
   imports: [
@@ -16,6 +15,6 @@ import { TelegramServiceOra } from './telegram/telegramora.service';
     }),
   ],
   controllers: [AppController, BeatSwapController],
-  providers: [BatchService, AppService, TelegramService, TelegramServiceOra],
+  providers: [BatchService, AppService, TelegramService],
 })
 export class AppModule {}
