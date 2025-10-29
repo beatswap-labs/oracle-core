@@ -1,12 +1,13 @@
 import { Controller, Get, Post, Body, Req, Logger, ValidationPipe } from '@nestjs/common';
 import { AppService } from './app.service';
+import { MintService } from './service/mint.service';
 import { oracleDto } from './dto/oracleDto';
 import { Request } from 'express';
 import * as moment from 'moment-timezone';
 
 @Controller('oracle')
 export class AppController {
-    constructor(private readonly appService: AppService) {}
+    constructor(private readonly appService: AppService, private readonly mintService: MintService) {}
 
     private readonly logger = new Logger(AppController.name);
 
@@ -253,7 +254,7 @@ export class AppController {
     async addMint(@Body() body: oracleDto) {
         this.logger.log(`addMint Call :: Type :: ${body.mintType} ID :: ${body.id} partnerIdx :: ${body.partnerIdx} amount :: ${body.amount}`);
         try {
-            const response = await this.appService.iplMint(body.id, body.partnerIdx, body.mintType, body.amount);
+            const response = await this.mintService.mintToken(body.id, body.partnerIdx, body.mintType, body.amount);
             return { success: true , response};
         } catch(e) {
             console.log("error",e);

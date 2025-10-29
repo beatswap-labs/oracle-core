@@ -1,19 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { HttpAgent, Actor } from '@dfinity/agent';
 import { Principal } from "@dfinity/principal";
 import { ConfigService } from '@nestjs/config';
-import { TelegramService } from './telegram/telegram.service'; 
-import { idlFactory as oracleIdlFactory } from "./motoko/oracle.did.js";
-import { idlFactory as unlockIdlFactory } from "./motoko/unlock.did.js";
-import { idlFactory as playIdlFactory } from "./motoko/play.did.js";
-import { idlFactory as memberIdlFactory } from "./motoko/member.did.js";
-import { idlFactory as memberSnapIdlFactory } from "./motoko/memberSnap.did.js";
-import { idlFactory as holderIdlFactory } from "./motoko/holder.did.js";
-import { idlFactory as trafficIdlFactory } from "./motoko/traffic.did.js";
-import { idlFactory as traffic2IdlFactory } from "./motoko/traffic2.did.js";
-import { idlFactory as tokenIdlFactory } from "./motoko/token.did.js";
-import { idlFactory as tokenArcIdlFactory } from "./motoko/tokenArc.did.js";
-import { idlFactory as mintIdlFactory } from "./motoko/mint.did.js";
+import { TelegramService } from './telegram/telegram.service';
 import * as httpMocks from 'node-mocks-http';
 import { EventEmitter } from 'stream';
 import * as moment from 'moment-timezone';
@@ -21,6 +9,7 @@ import axios from 'axios';
 import { oracleDto } from './dto/oracleDto.js';
 import { exec } from "child_process";
 import * as zlib from 'zlib';
+import { CanisterService } from './service/canister.service';
 
 
 const web3Router = require('./web3/web.js').default;
@@ -85,8 +74,8 @@ interface rightHolderReq {
 @Injectable()
 export class AppService {
 
-
-    constructor(private configService: ConfigService, private telegramService: TelegramService) {}
+    constructor(private configService: ConfigService, private telegramService: TelegramService, private canisterService: CanisterService) {}
+    private readonly logger = new Logger(AppService.name);
     
 
     private cachedPrice: number;
@@ -121,142 +110,6 @@ export class AppService {
     private readonly cacheDurationGraph = 3 * 60 * 60 * 1000; // 3hour
     private readonly cacheDurationUSD = 24 * 60 * 60 * 1000; // 1day
 
-    private readonly logger = new Logger(AppService.name);
-
-    private oracleActor: any;
-    private unlockActor: any;
-    private playActor: any;
-    private memberActor: any;
-    private memberSnapActor: any;
-    private holderActor: any;
-    private trafficActor: any;
-    private traffic2Actor: any;
-    private tokenActor: any;
-    private tokenArcActor: any;
-    private mintActor: any;
-    
-    async onModuleInit() {
-        const agent = new HttpAgent({host: 'https://ic0.app'});
-        const ORACLE_CANISTER_ID = this.configService.get<string>('ORACLE_CANISTER_ID');
-        const UNLOCK_CANISTER_ID = this.configService.get<string>('UNLOCK_CANISTER_ID');
-        const PLAY_CANISTER_ID = this.configService.get<string>('PLAY_CANISTER_ID');
-        const MEMBER_CANISTER_ID = this.configService.get<string>('MEMBER_CANISTER_ID');
-        const MEMBERSNAP_CANISTER_ID = this.configService.get<string>('MEMBERSNAP_CANISTER_ID');
-        const HOLDER_CANISTER_ID = this.configService.get<string>('HOLDER_CANISTER_ID');
-        const TRAFFIC_CANISTER_ID = this.configService.get<string>('TRAFFIC_CANISTER_ID');
-        const TRAFFIC2_CANISTER_ID = this.configService.get<string>('TRAFFIC2_CANISTER_ID');
-        const TOKEN_CANISTER_ID = this.configService.get<string>('TOKEN_CANISTER_ID');
-        const TOKEN_ARC_CANISTER_ID = this.configService.get<string>('TOKEN_ARC_CANISTER_ID');
-        const MINT_CANISTER_ID = this.configService.get<string>('MINT_CANISTER_ID');
-
-
-        if (!ORACLE_CANISTER_ID) {
-        this.logger.error('Cannot find ORACLE_CANISTER_ID');
-        throw new Error('Cannot find ORACLE_CANISTER_ID');
-        }
-        if (!UNLOCK_CANISTER_ID) {
-        this.logger.error('Cannot find UNLOCK_CANISTER_ID');
-        throw new Error('Cannot find UNLOCK_CANISTER_ID');
-        }
-        if (!PLAY_CANISTER_ID) {
-        this.logger.error('Cannot find PLAY_CANISTER_ID');
-        throw new Error('Cannot find PLAY_CANISTER_ID');
-        }
-        if (!MEMBER_CANISTER_ID) {
-        this.logger.error('Cannot find MEMBER_CANISTER_ID');
-        throw new Error('Cannot find MEMBER_CANISTER_ID');
-        }
-        if (!MEMBERSNAP_CANISTER_ID) {
-        this.logger.error('Cannot find MEMBERSNAP_CANISTER_ID');
-        throw new Error('Cannot find MEMBERSNAP_CANISTER_ID');
-        }
-        if (!HOLDER_CANISTER_ID) {
-        this.logger.error('Cannot find HOLDER_CANISTER_ID');
-        throw new Error('Cannot find HOLDER_CANISTER_ID');
-        }
-        if (!TRAFFIC_CANISTER_ID) {
-        this.logger.error('Cannot find TRAFFIC_CANISTER_ID');
-        throw new Error('Cannot find TRAFFIC_CANISTER_ID');
-        }
-        if (!TRAFFIC2_CANISTER_ID) {
-        this.logger.error('Cannot find TRAFFIC2_CANISTER_ID');
-        throw new Error('Cannot find TRAFFIC2_CANISTER_ID');
-        }
-        if (!TOKEN_CANISTER_ID) {
-        this.logger.error('Cannot find TOKEN_CANISTER_ID');
-        throw new Error('Cannot find TOKEN_CANISTER_ID');
-        }
-        if (!TOKEN_ARC_CANISTER_ID) {
-        this.logger.error('Cannot find TOKEN_ARC_CANISTER_ID');
-        throw new Error('Cannot find TOKEN_ARC_CANISTER_ID');
-        }
-        if (!MINT_CANISTER_ID) {
-        this.logger.error('Cannot find MINT_CANISTER_ID');
-        throw new Error('Cannot find MINT_CANISTER_ID');
-        }
-
-
-
-
-        await agent.fetchRootKey();
-
-        this.oracleActor = Actor.createActor(oracleIdlFactory, {
-        agent,
-        canisterId: ORACLE_CANISTER_ID,
-        });
-
-        this.unlockActor = Actor.createActor(unlockIdlFactory, {
-        agent,
-        canisterId: UNLOCK_CANISTER_ID,
-        });
-
-        this.playActor = Actor.createActor(playIdlFactory, {
-        agent,
-        canisterId: PLAY_CANISTER_ID,
-        });
-
-        this.memberActor = Actor.createActor(memberIdlFactory, {
-        agent,
-        canisterId: MEMBER_CANISTER_ID,
-        });
-
-        this.memberSnapActor = Actor.createActor(memberSnapIdlFactory, {
-        agent,
-        canisterId: MEMBERSNAP_CANISTER_ID,
-        });
-
-
-        this.holderActor = Actor.createActor(holderIdlFactory, {
-        agent,
-        canisterId: HOLDER_CANISTER_ID,
-        });
-
-        this.trafficActor = Actor.createActor(trafficIdlFactory, {
-        agent,
-        canisterId: TRAFFIC_CANISTER_ID,
-        });
-
-        this.traffic2Actor = Actor.createActor(traffic2IdlFactory, {
-        agent,
-        canisterId: TRAFFIC2_CANISTER_ID,
-        });
-
-        this.tokenActor = Actor.createActor(tokenIdlFactory, {
-        agent,
-        canisterId: TOKEN_CANISTER_ID,
-        });
-
-        this.tokenArcActor = Actor.createActor(tokenArcIdlFactory, {
-        agent,
-        canisterId: TOKEN_ARC_CANISTER_ID,
-        });
-
-        this.mintActor = Actor.createActor(mintIdlFactory, {
-        agent,
-        canisterId: MINT_CANISTER_ID,
-        });
-    }
-
     async addRightsHolder() {
         const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
 
@@ -264,10 +117,10 @@ export class AppService {
             this.logger.error('Cannot find OWNER_KEY');
             throw new Error('Cannot find OWNER_KEY');
         }
-        const musicInfo = await this.oracleActor.getMusicWorkInfos();
+        const musicInfo = await this.canisterService.oracleActor.getMusicWorkInfos();
         const now = moment().utc();
         for(let i = 0; i < musicInfo.length; i++) {
-            const holder = await this.holderActor.getDailyRightsHoldersByYMD(musicInfo[i].op_neighboring_token_address, now.format('YYYY-MM-DD'));
+            const holder = await this.canisterService.holderActor.getDailyRightsHoldersByYMD(musicInfo[i].op_neighboring_token_address, now.format('YYYY-MM-DD'));
             if(JSON.stringify(holder) !== '[]') {
                 this.logger.log('Data already exists');
                 continue;
@@ -307,7 +160,7 @@ export class AppService {
             
             try {
                 // this.logger.log(`reqData::: ${JSON.stringify(reqData)}`);
-                await this.holderActor.addDailyRightsHoldersData(OWNER_KEY, JSON.stringify(reqData));
+                await this.canisterService.holderActor.addDailyRightsHoldersData(OWNER_KEY, JSON.stringify(reqData));
             } catch (err) {
                 this.logger.error(`addDailyRightsHolder rate ::: ${JSON.stringify(reqData)}`, err.message);
             }
@@ -322,7 +175,7 @@ export class AppService {
             throw new Error('Cannot find OWNER_KEY');
         }
 
-        const musicInfo = await this.oracleActor.getMusicWorkInfos();
+        const musicInfo = await this.canisterService.oracleActor.getMusicWorkInfos();
         const now = moment().tz('Asia/Seoul');
 
 
@@ -362,7 +215,7 @@ export class AppService {
             
             try {
                 // this.logger.log(`reqData::: ${JSON.stringify(reqData)}`);
-                await this.holderActor.addDailyRightsHoldersData(OWNER_KEY, JSON.stringify(reqData));
+                await this.canisterService.holderActor.addDailyRightsHoldersData(OWNER_KEY, JSON.stringify(reqData));
             } catch (err) {
                 this.logger.error(`addDailyRightsHolder rate ::: ${JSON.stringify(reqData)}`, err.message);
             }
@@ -378,11 +231,11 @@ export class AppService {
         }
 
         const dailyTransactionCnt = await this.getTotalTransactionScan();
-        const transactionSnapTotal = await this.memberSnapActor.getMonthlyTransactionSnapsWithTotal("20");
+        const transactionSnapTotal = await this.canisterService.memberSnapActor.getMonthlyTransactionSnapsWithTotal("20");
 
         cnt = Number(dailyTransactionCnt.totalTransaction) - Number(transactionSnapTotal.total);
         this.logger.log(`addDailyTransactionSnap cnt ::: ${cnt}`);
-        const res = await this.memberSnapActor.addDailyTransactionSnap(OWNER_KEY, date, cnt);
+        const res = await this.canisterService.memberSnapActor.addDailyTransactionSnap(OWNER_KEY, date, cnt);
         this.logger.log('reponse ::',res);
     }
 
@@ -394,11 +247,11 @@ export class AppService {
             throw new Error('Cannot find OWNER_KEY');
         }
         const memberTotalCount = await this.getRWAContributors();
-        const memberSnapTotal = await this.memberSnapActor.getMonthlyMemberSnapsWithTotal("20");
+        const memberSnapTotal = await this.canisterService.memberSnapActor.getMonthlyMemberSnapsWithTotal("20");
 
         cnt = Number(memberTotalCount) - Number(memberSnapTotal.total);
         this.logger.log(`addDailyMemberSnap cnt ::: ${cnt}`);
-        const res = await this.memberSnapActor.addDailyMemberSnap(OWNER_KEY, date, cnt);
+        const res = await this.canisterService.memberSnapActor.addDailyMemberSnap(OWNER_KEY, date, cnt);
         this.logger.log('reponse ::',res);
     }
 
@@ -411,11 +264,11 @@ export class AppService {
         }   
 
         const dailyTotalRoyalty = await this.getTotalSupply();
-        const royaltySnapTotal = await this.memberSnapActor.getMonthlyRoyaltySnapsWithTotal("20"); 
+        const royaltySnapTotal = await this.canisterService.memberSnapActor.getMonthlyRoyaltySnapsWithTotal("20"); 
 
         cnt = Number(dailyTotalRoyalty.totalSupplyByDoller) - Number(royaltySnapTotal.total);
         this.logger.log(`addDailyRoyaltySnap cnt ::: ${cnt}`);
-        const res = await this.memberSnapActor.addDailyRoyaltySnap(OWNER_KEY, date, cnt);
+        const res = await this.canisterService.memberSnapActor.addDailyRoyaltySnap(OWNER_KEY, date, cnt);
         this.logger.log('reponse ::',res);
     }
 
@@ -428,7 +281,7 @@ export class AppService {
             throw new Error('Cannot find OWNER_KEY');
         }
 
-        const res = await this.oracleActor.getMusicInfoByPaykhan(OWNER_KEY);
+        const res = await this.canisterService.oracleActor.getMusicInfoByPaykhan(OWNER_KEY);
 
         if(res === '[]') {
             this.logger.log('Nothing to update');
@@ -459,7 +312,7 @@ export class AppService {
             play_at : now.format('YYYY-MM-DD HH:mm:ss')
         });
 
-        const res = await this.playActor.addUserPlayData(OWNER_KEY, addUserPlayDataReq);
+        const res = await this.canisterService.playActor.addUserPlayData(OWNER_KEY, addUserPlayDataReq);
 
         if(res === '[]') {
             this.logger.log('Nothing to update');
@@ -480,7 +333,7 @@ export class AppService {
             throw new Error('Cannot find OWNER_KEY');
         }
         
-        const res = await this.unlockActor.getVerificationUnlockListPaykhan(idx, OWNER_KEY);
+        const res = await this.canisterService.unlockActor.getVerificationUnlockListPaykhan(idx, OWNER_KEY);
 
         if(res === '[]') {
             this.logger.log('Nothing to update');
@@ -513,7 +366,7 @@ export class AppService {
             this.logger.log(`response url ::: ${url}`);
             
             
-            await this.oracleActor.getMusicInfoByPaykhanData(OWNER_KEY, data);
+            await this.canisterService.oracleActor.getMusicInfoByPaykhanData(OWNER_KEY, data);
             
         } catch(error) {
             this.logger.log(error);
@@ -603,7 +456,7 @@ export class AppService {
         const now = Date.now();
 
         if (!this.cachedMusicInfo || now - this.lastFetchMusicInfoTime > this.cacheDurationMusicInfo) {
-            const musicInfo = await this.oracleActor.getMusicWorkInfosByOwner(OWNER_KEY);
+            const musicInfo = await this.canisterService.oracleActor.getMusicWorkInfosByOwner(OWNER_KEY);
             musicInfo.forEach(item => {
                     const key = Number(item.genre_idx);
                     if (gnere[key]) {
@@ -629,7 +482,7 @@ export class AppService {
         const now = Date.now();
         
         if (!this.cachedMusicInfoGenre || now - this.lastFetchMusicInfoGenreTime > this.cacheDurationMusicInfo) {
-            const res = await this.oracleActor.getMusicWorkInfosByGenre(genreIdx);
+            const res = await this.canisterService.oracleActor.getMusicWorkInfosByGenre(genreIdx);
             this.logger.log(`genreInfo: ${res}`);
             this.lastFetchMusicInfoTime = now;
             
@@ -652,7 +505,7 @@ export class AppService {
         const now = moment().utc();
         const date = now.format('YYYYMMDD');
 
-        const res = await this.holderActor.getDailyRightsHoldersByYMD(address, date);
+        const res = await this.canisterService.holderActor.getDailyRightsHoldersByYMD(address, date);
         let sumAmount = 0;
         
         for(let i = 0; i < res.length; i++) {
@@ -681,7 +534,7 @@ export class AppService {
 
         this.logger.log(`startTs ${startTs} endTs :: ${endTs}`);
 
-        const res = await this.holderActor.getTotalUnlockCountForHolderInRange(address, startTs, endTs);
+        const res = await this.canisterService.holderActor.getTotalUnlockCountForHolderInRange(address, startTs, endTs);
 
         for(let i = 0; i < res.length; i++) {
             res[i] = {"idx": Number(res[i][0]), "unlockCount": Number(res[i][1])};
@@ -720,7 +573,7 @@ export class AppService {
         const now = Date.now();
         if (!this.cachedTotalSupplyGraph || now - this.lastFetchTotalSupplyGraphTime > this.cacheDurationGraph) {
         this.lastFetchTotalSupplyGraphTime = now;
-        const arr = await this.memberSnapActor.getMonthlyRoyaltySnapsArr("20");
+        const arr = await this.canisterService.memberSnapActor.getMonthlyRoyaltySnapsArr("20");
             console.log(`arr ::: ${arr.length}`);
             
         for (let i = arr.length; i >= 1; i--) {
@@ -734,7 +587,7 @@ export class AppService {
             const day = `${yearStr}${monthStr}${dayStr}`;
             console.log(`day ::: ${day}`);
 
-            const snap = await this.memberSnapActor.getDailyRoyaltySnap(day);
+            const snap = await this.canisterService.memberSnapActor.getDailyRoyaltySnap(day);
             console.log(`snap ::: ${snap[0].snap_date}  ${snap[0].total_royalty}`);
             const formatted = moment(snap[0].snap_date, "YYYYMMDD").format("YYYY-MM-DD");
             graph.push({ date: formatted, value: Number(snap[0].total_royalty) });
@@ -777,7 +630,7 @@ export class AppService {
         const now = Date.now();
         if (!this.cachedRWAContributorsGragh || now - this.lastFetchRWAContributorsGraghTime > this.cacheDurationGraph) {
             this.lastFetchRWAContributorsGraghTime = now;
-        const arr = await this.memberSnapActor.getMonthlyMemberSnapsArr("20");
+        const arr = await this.canisterService.memberSnapActor.getMonthlyMemberSnapsArr("20");
         console.log(`arr ::: ${arr.length}`);
             
         for (let i = arr.length; i >= 1; i--) {
@@ -791,7 +644,7 @@ export class AppService {
             const day = `${yearStr}${monthStr}${dayStr}`;
             console.log(`day ::: ${day}`);
 
-            const snap = await this.memberSnapActor.getDailyMemberSnap(day);
+            const snap = await this.canisterService.memberSnapActor.getDailyMemberSnap(day);
             console.log(`snap ::: ${snap[0].snap_date}  ${snap[0].member_count}`);
             const formatted = moment(snap[0].snap_date, "YYYYMMDD").format("YYYY-MM-DD");
             graph.push({ date: formatted, value: Number(snap[0].member_count) });
@@ -836,7 +689,7 @@ export class AppService {
         const now = Date.now();
         if (!this.cachedTotalTransactionGraph || now - this.lastFetchTotalTransactionGraphTime > this.cacheDurationGraph) {
             this.lastFetchTotalTransactionGraphTime = now;
-            const arr = await this.memberSnapActor.getMonthlyTransactionSnapsArr("20");
+            const arr = await this.canisterService.memberSnapActor.getMonthlyTransactionSnapsArr("20");
             console.log(`arr ::: ${arr.length}`);
             
          for (let i = arr.length; i >= 1; i--) {
@@ -849,7 +702,7 @@ export class AppService {
             const day = `${yearStr}${monthStr}${dayStr}`;
             console.log(`day ::: ${day}`);
 
-            const snap = await this.memberSnapActor.getDailyTransactionSnap(day);
+            const snap = await this.canisterService.memberSnapActor.getDailyTransactionSnap(day);
             console.log(`snap ::: ${snap[0].snap_date}  ${snap[0].transaction_count}`);
             const formatted = moment(snap[0].snap_date, "YYYYMMDD").format("YYYY-MM-DD");
             graph.push({ date: formatted, value: Number(snap[0].transaction_count) });
@@ -890,11 +743,11 @@ export class AppService {
         const now = Date.now();
 
         if (!this.cachedTotalSupply || now - this.lastFetchTotalSupplyTime > this.cacheDurationTotal) {
-            const totalSupply = await this.tokenActor.icrc1_total_supply();
-            this.logger.log(`totalSupply: ${totalSupply}`);
+            const totalSupply = await this.canisterService.tokenActor.icrc1_total_supply();
+            // this.logger.log(`totalSupply: ${totalSupply }`);
             this.lastFetchTotalSupplyTime = now;
 
-            this.cachedTotalSupply = Number(totalSupply) - 249999965;
+            this.cachedTotalSupply = Number(totalSupply) - 199999965;
         }
 
         return {
@@ -911,7 +764,7 @@ export class AppService {
         const now = Date.now();
 
         if (!this.cachedTotalTransaction || now - this.lastFetchTotalTransactionTime > this.cacheDurationTotal) {
-            const length = await this.tokenActor.get_transactions(GetTransactionLength);
+            const length = await this.canisterService.tokenActor.get_transactions(GetTransactionLength);
             this.logger.log(`totalTransaction: ${length.log_length}`);
             this.lastFetchTotalTransactionTime = now;
 
@@ -933,13 +786,13 @@ export class AppService {
             const now = Date.now();
             
         if (!this.cachedDashBoard || now - this.lastFetchDashBoardTime > this.cacheDurationTotal) {
-            const length = await this.tokenActor.get_transactions(GetTransactionLength);
+            const length = await this.canisterService.tokenActor.get_transactions(GetTransactionLength);
             console.log(`start : ${Number(length.log_length)-20} end ${Number(length.log_length)}`);
             const GetTransactionReq = ({
                         start: Number(length.log_length)-20, 
                         length: Number(length.log_length)
                 });
-            const transaction = await this.tokenActor.get_transactions(GetTransactionReq);
+            const transaction = await this.canisterService.tokenActor.get_transactions(GetTransactionReq);
             const start = Number(length.log_length)-20;
     
             const transactionList = this.parseTransactions(transaction.transactions, type, start);
@@ -972,7 +825,7 @@ export class AppService {
         
         const now = Date.now();
         if (!this.cachedScan || now - this.lastFetchScanTime > this.cacheDurationTotal || page !== this.cachedScan.currentPage) {
-            const length = await this.tokenActor.get_transactions(GetTransactionLength);
+            const length = await this.canisterService.tokenActor.get_transactions(GetTransactionLength);
             const total = Number(length.log_length); // 전체 트랜잭션 수
             const startArc = Number(length.first_index);
             const type = 'scan';
@@ -996,11 +849,11 @@ export class AppService {
             this.logger.log(`page ${start}, ${end}`);
             let transactionList: any;
             if(end > startArc) {
-                const transaction = await this.tokenActor.get_transactions(GetTransactionReq);
+                const transaction = await this.canisterService.tokenActor.get_transactions(GetTransactionReq);
                 console.log(transaction);
                 transactionList = this.parseTransactions(transaction.transactions, type, start);
             } else {
-                const transactionArc = await this.tokenArcActor.get_transactions(GetTransactionReq);
+                const transactionArc = await this.canisterService.tokenArcActor.get_transactions(GetTransactionReq);
                 console.log(transactionArc);
                 transactionList = this.parseTransactions(transactionArc.transactions, type, start);
             }
@@ -1024,11 +877,11 @@ export class AppService {
     }
 
     async getRWAContributors(): Promise<string> {
-        return await this.memberActor.getMemberRowCnt();
+        return await this.canisterService.memberActor.getMemberRowCnt();
     }
 
     async getPartners(): Promise<string> {
-        return await this.memberActor.getPartners();
+        return await this.canisterService.memberActor.getPartners();
     }
 
     async getPrincipalById(partnerIdx: number, id: string): Promise<any> {
@@ -1038,13 +891,13 @@ export class AppService {
             const secretKey = process.env.TELEGRAM_BOT_TOKEN!.split(":")[1].slice(0,32).padEnd(32,'0').substring(0,32);
             id = this.telegramService.decrypt(id,secretKey);
             console.log(`decrypted id :: ${id}`);
-            principal = await this.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
+            principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
             if(principal[0] === undefined){
                 await this.addPrincipal(id, partnerIdx);
-                principal = await this.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
+                principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
             }
             console.log(principal[0].principle);
-            const ipl = await this.tokenActor.icrc1_balance_of({ owner: Principal.fromText(principal[0].principle), subaccount: []});
+            const ipl = await this.canisterService.tokenActor.icrc1_balance_of({ owner: Principal.fromText(principal[0].principle), subaccount: []});
             console.log(ipl);
             
             return {
@@ -1062,10 +915,10 @@ export class AppService {
                         const resId = await axios.get(`https://paykhan.org/nftAudio/getPaykhanIdByAddress?address=${id}`);
                         id = resId.data.replace(/[^a-zA-Z0-9._@-]/g, 'd');
                     } 
-                    const res = await this.memberActor.getMemberByPartnerIdxAndUser(idx, id);
+                    const res = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(idx, id);
                     if (res && res.length > 0) {
                         const m = res[0];
-                        const ipl = await this.tokenActor.icrc1_balance_of({ owner: Principal.fromText(m.principle), subaccount: []});
+                        const ipl = await this.canisterService.tokenActor.icrc1_balance_of({ owner: Principal.fromText(m.principle), subaccount: []});
                         console.log(ipl);
                     return {
                         partnerIdx: Number(m.partner_idx),
@@ -1098,19 +951,19 @@ export class AppService {
         }
         this.updateTotal(OWNER_KEY);
         
-        return await this.oracleActor.getUnlockedAccumulated();
+        return await this.canisterService.oracleActor.getUnlockedAccumulated();
     }
 
     async getTotalVerificationUnlockCount(partnerIdx: number): Promise<number> {
-        return await this.unlockActor.getTotalVerificationUnlockCount(partnerIdx);
+        return await this.canisterService.unlockActor.getTotalVerificationUnlockCount(partnerIdx);
     }
 
     async getVerificationUnlockListsByDate(partnerIdx: number, unlockDate: string): Promise<string> {
-        return await this.unlockActor.getVerificationUnlockListsByDate(partnerIdx,unlockDate);
+        return await this.canisterService.unlockActor.getVerificationUnlockListsByDate(partnerIdx,unlockDate);
     }
 
     async getVerificationUnlockListsByDateTs(partnerIdx: number, startTs: number, endTs: number): Promise<string> {
-        return await this.unlockActor.getVerificationUnlockListsByDateTs(partnerIdx,startTs,endTs);
+        return await this.canisterService.unlockActor.getVerificationUnlockListsByDateTs(partnerIdx,startTs,endTs);
     }
 
     async addMusicWorkInfo(body: oracleDto): Promise<string> {
@@ -1122,7 +975,7 @@ export class AppService {
         }
         const OWNER = [OWNER_KEY];
 
-        return await this.oracleActor.addMusicWorkInfo(OWNER, body);
+        return await this.canisterService.oracleActor.addMusicWorkInfo(OWNER, body);
     }
 
 
@@ -1134,7 +987,7 @@ export class AppService {
             this.logger.error('Cannot find OWNER_KEY');
             throw new Error('Cannot find OWNER_KEY');
         }
-        const musicInfo = await this.oracleActor.getMusicWorkInfosByOwner(OWNER_KEY);
+        const musicInfo = await this.canisterService.oracleActor.getMusicWorkInfosByOwner(OWNER_KEY);
 
         const OWNER = [OWNER_KEY];
 
@@ -1174,7 +1027,7 @@ export class AppService {
             unlock_total_count: item.unlock_total_count
         }
         console.log("updateBody", updateBody);
-        await this.oracleActor.updateMusicWorkInfo(OWNER, updateBody);
+        await this.canisterService.oracleActor.updateMusicWorkInfo(OWNER, updateBody);
     }
 
         // await this.oracleActor.updateMusicWorkInfo(OWNER, updateBody);
@@ -1190,15 +1043,15 @@ export class AppService {
         }
 
 
-        await this.oracleActor.addPartner(OWNER_KEY, partnerIdx, partnerName);
+        await this.canisterService.oracleActor.addPartner(OWNER_KEY, partnerIdx, partnerName);
     }
     
     async addRequesterId(requestName: string, requestPrincipal: string, canApprove: boolean) {
-        await this.oracleActor.addRequesterId(requestName, requestPrincipal, canApprove);
+        await this.canisterService.oracleActor.addRequesterId(requestName, requestPrincipal, canApprove);
     }
 
     async getMusicIdxInfos(idx: number): Promise<any> {
-        const res = await this.oracleActor.getMusicWorkInfos();
+        const res = await this.canisterService.oracleActor.getMusicWorkInfos();
         
         const found = res.find(item => Number(item.idx) === idx);
 
@@ -1245,7 +1098,7 @@ export class AppService {
         this.logger.log(`payKhanSaleRoyalty :: ${payKhanSaleRoyalty}`);
         this.logger.log(`miniRoyalty :: ${miniRoyalty}`);
 
-        const list = await this.oracleActor.getMusicContractAddress();
+        const list = await this.canisterService.oracleActor.getMusicContractAddress();
         
         const jsonList = JSON.parse(list);
         // console.log("jsonlist", jsonList);
@@ -1257,7 +1110,7 @@ export class AppService {
 
 
 
-        const stakerInfo = await this.holderActor.getDailyRightsHoldersByYMD_List(addressList,  now.format('YYYY-MM-DD'));
+        const stakerInfo = await this.canisterService.holderActor.getDailyRightsHoldersByYMD_List(addressList,  now.format('YYYY-MM-DD'));
 
         this.logger.log(`stakerInfo1 :: ${JSON.stringify(stakerInfo)}`);
 
@@ -1336,7 +1189,7 @@ export class AppService {
 
         this.logger.log(`miniRoyalty :: ${miniRoyalty}`);
 
-        const list = await this.oracleActor.getMusicContractAddress();
+        const list = await this.canisterService.oracleActor.getMusicContractAddress();
         
         const jsonList = JSON.parse(list);
 
@@ -1347,7 +1200,7 @@ export class AppService {
 
 
 
-        const stakerInfo = await this.holderActor.getDailyRightsHoldersByYMD_List(addressList,  now.format('YYYY-MM-DD'));
+        const stakerInfo = await this.canisterService.holderActor.getDailyRightsHoldersByYMD_List(addressList,  now.format('YYYY-MM-DD'));
 
         
         for(let i = 0; i < stakerInfo.length; i++) {
@@ -1413,15 +1266,15 @@ export class AppService {
         const now = Date.now();
 
         if (!this.cachedCntTotal || now - this.lastFetchTotalTime > this.cacheDurationTotal) {
-            const oracleRow = await this.trafficActor.getOracleDataRowCnt();
-            const oracleRow2 = await this.traffic2Actor.getOracleDataRowCnt2();
+            const oracleRow = await this.canisterService.trafficActor.getOracleDataRowCnt();
+            const oracleRow2 = await this.canisterService.traffic2Actor.getOracleDataRowCnt2();
 
             const total = oracleRow+oracleRow2;
 
             this.logger.log(`oracleRow2: ${oracleRow2}`);
             this.lastFetchTotalTime = now;
             
-            const res = await this.oracleActor.updateUnlockedAccumulated(owner, total);
+            const res = await this.canisterService.oracleActor.updateUnlockedAccumulated(owner, total);
             this.cachedCntTotal = total;
             this.logger.log(`unlockCount: ${oracleRow+oracleRow2} :: ${res}`);
         }
@@ -1468,7 +1321,7 @@ export class AppService {
 
         try {
             id = id.toString().replace(/[^a-zA-Z0-9._@-]/g, 'd');
-            const principalCheck = await this.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
+            const principalCheck = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
             if(principalCheck.length > 0) {
                 this.logger.log('This member already exists.');
                 return { response: 'This member already exists.'};
@@ -1489,7 +1342,7 @@ export class AppService {
                                 created_at: now.format('YYYY-MM-DD HH:mm:ss'),
                             });
             
-            const stakerInfo = await this.memberActor.addMember(OWNER_KEY, members)
+            const stakerInfo = await this.canisterService.memberActor.addMember(OWNER_KEY, members)
 
 
             return stakerInfo;
@@ -1523,7 +1376,7 @@ export class AppService {
                 this.logger.log(`paykhan id ${id}`);
             }
 
-            const principal = await this.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
+            const principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
             
             this.logger.log(principal[0].principle);
             const encoder = new TextEncoder();
@@ -1545,7 +1398,7 @@ export class AppService {
             const userPrincipal = Principal.fromText(principal[0].principle);
 
             this.logger.log(`userPrincipal :: ${userPrincipal.toText()}`);
-            const stakerInfo = await this.mintActor.mintForUser(OWNER_KEY, userPrincipal, Math.floor(amount), [memo], [nowNs])
+            const stakerInfo = await this.canisterService.mintActor.mintForUser(OWNER_KEY, userPrincipal, Math.floor(amount), [memo], [nowNs])
             
             return stakerInfo;
 
@@ -1590,7 +1443,7 @@ export class AppService {
                 }
             }
             for(let idx = 0; idx < resData.length; idx ++) {
-                const list = await this.oracleActor.getMusicContractAddress();
+                const list = await this.canisterService.oracleActor.getMusicContractAddress();
                 const jsonList = JSON.parse(list);
 
                 console.log(resData[idx].tune_idx);
@@ -1601,7 +1454,7 @@ export class AppService {
                     
                 console.log("addressList", addressList);
                 
-                const stakerInfo = await this.holderActor.getDailyRightsHoldersByYMD_List(addressList,  now.format('YYYY-MM-DD'));
+                const stakerInfo = await this.canisterService.holderActor.getDailyRightsHoldersByYMD_List(addressList,  now.format('YYYY-MM-DD'));
         
                 
                 for(let i = 0; i < stakerInfo.length; i++) {
@@ -1694,7 +1547,7 @@ export class AppService {
                     try{    
                         this.logger.log(`response idx ::: ${i} ${JSON.stringify(response.data[i])}`);
                         const id = response.data[i].id.replace(/[^a-zA-Z0-9._@-]/g, 'd');
-                        const principalData = await this.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
+                        const principalData = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
                         
                         
                         principal= principalData[0].principle;
@@ -1717,20 +1570,20 @@ export class AppService {
                                 this.logger.log(`principal ${userPrincipal} amount ${amount}, memo ${memo}, nowNs ${nowNs}`);
                                 this.logger.log(`royaltyIdList ${royaltyIdList}`); 
                                 await Promise.race([
-                                    this.mintActor.mintForUser(OWNER_KEY, userPrincipal, amount, [memo], [nowNs]),
+                                    this.canisterService.mintActor.mintForUser(OWNER_KEY, userPrincipal, amount, [memo], [nowNs]),
                                 new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout mintForUser')), 5000))]);
                                 for(let idx = 0; idx < royaltyIdList.length-1; idx++) {
                                     try{
                                         const royaltyId = royaltyIdList[idx].replace(/[^a-zA-Z0-9._@-]/g, 'd');
                                         const royaltyAmount = Math.floor(amount*(Number(royaltyList[idx])/2000));
-                                        const royaltyprincipalData = await this.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, royaltyId);
+                                        const royaltyprincipalData = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, royaltyId);
                                         memo = encoder.encode("RoyaltyReward");
                                         const royaltyprincipal = royaltyprincipalData[0].principle;
                                         const royaltyUserPrincipal = Principal.fromText(royaltyprincipal);
                                         const royaltyNowNs = BigInt(nowMs) * 1_000_000n;
                                         this.logger.log(`Royalty principal ${royaltyUserPrincipal} amount ${royaltyAmount}, memo ${memo}, nowNs ${royaltyNowNs}`);
                                         await Promise.race([
-                                            this.mintActor.mintForUser(OWNER_KEY, royaltyUserPrincipal, royaltyAmount, [memo], [nowNs]),
+                                            this.canisterService.mintActor.mintForUser(OWNER_KEY, royaltyUserPrincipal, royaltyAmount, [memo], [nowNs]),
                                         new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout mintForUser')), 5000))]);
                                     } catch (error) {
                                         this.logger.error(`mint: ${error} :: royaltyId ${royaltyIdList[idx]}`);
@@ -1772,7 +1625,7 @@ export class AppService {
                             this.logger.log(`response idx ::: ${i} ${JSON.stringify(response.data)}`);
                             this.logger.log(`response result ::: ${JSON.stringify(response.data.result.result)}`);
                             const id = responseData.id.replace(/[^a-zA-Z0-9._@-]/g, 'd');
-                            const principalData = await this.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
+                            const principalData = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
                             
                             
                             principal= principalData[0].principle;
@@ -1795,20 +1648,20 @@ export class AppService {
                                 this.logger.log(`principal ${userPrincipal} amount ${amount}, memo ${memo}, nowNs ${nowNs}`);
                                 this.logger.log(`royaltyIdList ${royaltyIdList}`); 
                                 await Promise.race([
-                                    this.mintActor.mintForUser(OWNER_KEY, userPrincipal, amount, [memo], [nowNs]),
+                                    this.canisterService.mintActor.mintForUser(OWNER_KEY, userPrincipal, amount, [memo], [nowNs]),
                                 new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout mintForUser')), 5000))]);
                                 for(let j = 0; j < royaltyIdList.length; j++) {
                                     try{
                                         const royaltyId = royaltyIdList[j].replace(/[^a-zA-Z0-9._@-]/g, 'd');
                                         const royaltyAmount = Math.floor((amount-30)*(Number(royaltyList[j])/2000));
-                                        const royaltyprincipalData = await this.memberActor.getMemberByPartnerIdxAndUser(1, royaltyId);
+                                        const royaltyprincipalData = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(1, royaltyId);
                                         memo = encoder.encode("RoyaltyReward");
                                         const royaltyprincipal = royaltyprincipalData[0].principle;
                                         const royaltyUserPrincipal = Principal.fromText(royaltyprincipal);
                                         const royaltyNowNs = BigInt(nowMs) * 1_000_000n;
                                         this.logger.log(`Royalty principal ${royaltyUserPrincipal} amount ${royaltyAmount}, memo ${memo}, nowNs ${royaltyNowNs}`);
                                         await Promise.race([
-                                            this.mintActor.mintForUser(OWNER_KEY, royaltyUserPrincipal, royaltyAmount, [memo], [nowNs]),
+                                            this.canisterService.mintActor.mintForUser(OWNER_KEY, royaltyUserPrincipal, royaltyAmount, [memo], [nowNs]),
                                         new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout mintForUser')), 5000))]);
                                     } catch (error) {
                                         this.logger.error(`mint: ${error} :: royaltyId ${royaltyIdList[j]}`);
@@ -1955,7 +1808,7 @@ export class AppService {
             // this.oracleActor.incrementUnlockedAccumulated(1, ownerKey)
             //     .catch((err) => console.error("incrementUnlockedAccumulated:", err));
 
-            this.oracleActor.incrementMusicWorkInfoUnlockCount(idx, ownerKey)
+            this.canisterService.oracleActor.incrementMusicWorkInfoUnlockCount(idx, ownerKey)
                 .catch((err) => console.error("incrementMusicWorkInfoUnlockCount:", err));
         }
 
@@ -1973,7 +1826,7 @@ export class AppService {
         // retry
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                await this.traffic2Actor.addVerificationUnlockListData(ownerKey, JSON.stringify(jsonArray));
+                await this.canisterService.traffic2Actor.addVerificationUnlockListData(ownerKey, JSON.stringify(jsonArray));
                 break; // next chunk
             } catch (err) {
                 lastError = err;
@@ -1998,7 +1851,7 @@ export class AppService {
                     length: cnt
             });
 
-            const transaction = await this.tokenArcActor.get_transactions(GetTransactionLength);
+            const transaction = await this.canisterService.tokenArcActor.get_transactions(GetTransactionLength);
             let mainList = this.parseTransactions(transaction.transactions, "scan", GetTransactionLength.start);
             allTx = [...mainList];
             this.logger.log(`totalTransaction: ${allTx.length}`);
@@ -2009,13 +1862,13 @@ export class AppService {
                     length: cnt - allTx.length
                 });
 
-                const transactionLive = await this.tokenActor.get_transactions(GetTransactionLengthLive);
+                const transactionLive = await this.canisterService.tokenActor.get_transactions(GetTransactionLengthLive);
 
                 const archiveList = this.parseTransactions(transactionLive.transactions, "scan", Number(GetTransactionLengthLive.start));
                 allTx = [...allTx, ...archiveList];
             } else {
                 this.logger.log(`Archive End Live Data`);
-                const transactionLive = await this.tokenActor.get_transactions(GetTransactionLength);
+                const transactionLive = await this.canisterService.tokenActor.get_transactions(GetTransactionLength);
 
                 const archiveList = this.parseTransactions(transactionLive.transactions, "scan", Number(GetTransactionLength.start));
                 allTx = [...allTx, ...archiveList];
