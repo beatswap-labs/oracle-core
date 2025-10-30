@@ -565,113 +565,100 @@ export class AppService {
     }
 
     async getTotalSupplyGragh(today: Date): Promise<any> {
-        let totalRoyalty: number = 0;
-        let week;
         let graph: { date: any; value: number }[] = [];
-        let results: { date: any; value: number }[] = [];
+        this.logger.log(`getTotalSupplyGragh today ::: ${today}`);
         
         const now = Date.now();
         if (!this.cachedTotalSupplyGraph || now - this.lastFetchTotalSupplyGraphTime > this.cacheDurationGraph) {
-        this.lastFetchTotalSupplyGraphTime = now;
-        const arr = await this.canisterService.memberSnapActor.getMonthlyRoyaltySnapsArr("20");
-            console.log(`arr ::: ${arr.length}`);
+            this.lastFetchTotalSupplyGraphTime = now;
+            const arr = await this.canisterService.memberSnapActor.getMonthlyRoyaltySnapsArr("20");
             
-        for (let i = arr.length; i >= 1; i--) {
-            const d = new Date(today);
-            d.setDate(d.getDate() - i);
+            const dayList = Array.from({ length: arr.length }, (_, i) => {
+                const d = new Date(today);
+                d.setDate(d.getDate() - (arr.length - i));
+                const day = d.toISOString().slice(0, 10).replace(/-/g, ""); // YYYYMMDD
+                return day;
+            });
 
-            const yearStr = d.getFullYear();
-            const monthStr = String(d.getMonth() + 1).padStart(2, "0"); // JS는 0-based
-            const dayStr = String(d.getDate()).padStart(2, "0");
+            const snaps = await Promise.all(
+                dayList.map((day) => this.canisterService.memberSnapActor.getDailyRoyaltySnap(day))
+            );
 
-            const day = `${yearStr}${monthStr}${dayStr}`;
-            console.log(`day ::: ${day}`);
 
-            const snap = await this.canisterService.memberSnapActor.getDailyRoyaltySnap(day);
-            console.log(`snap ::: ${snap[0].snap_date}  ${snap[0].total_royalty}`);
-            const formatted = moment(snap[0].snap_date, "YYYYMMDD").format("YYYY-MM-DD");
-            graph.push({ date: formatted, value: Number(snap[0].total_royalty) });
-        }
+            for (let i = 0; i < snaps.length; i++) {
+                const snap = snaps[i][0];
+                const date = `${snap.snap_date.slice(0, 4)}-${snap.snap_date.slice(4, 6)}-${snap.snap_date.slice(6, 8)}`;
+                graph.push({ date, value: Number(snap.total_royalty) });
+            }
+            
+            const getRangeSum = (range: number) =>
+                graph.slice(-range).reduce((sum, item) => sum + item.value, 0);
 
-        console.log(`graph ::: ${JSON.stringify(graph)}`);
+            const week = getRangeSum(7);
+            const month = getRangeSum(30);
 
-        for(let j = graph.length-7; j < graph.length; j++) {
-            totalRoyalty += graph[j].value;
-            this.logger.log(`totalRoyalty ::: ${totalRoyalty}`);
-            results.push({ date: graph[j].date, value: totalRoyalty });
-        }
+            this.logger.log(`week ::: ${week} month ::: ${month}`);
 
-        console.log(`results ::: ${JSON.stringify(results)}`);
-        
-        week = totalRoyalty - graph[graph.length-1].value;
-        this.logger.log(`week ::: ${week}`);
+            const sumGraph = graph.reduce<{ date: string; value: number }[]>((acc, item) => {
+                const prev = acc.length ? acc[acc.length - 1].value : 0;
+                acc.push({ date: item.date, value: prev + item.value });
+                return acc;
+            }, []);
 
-        let sumGraphValue = 0;
-        const sumGraph = graph.map(item => {
-            sumGraphValue += item.value;
-            return { date: item.date, value: sumGraphValue };
-        });
-
-        this.cachedTotalSupplyGraph = {  week: String(week),
-                                    month:'',
-                                    gragh : sumGraph
+            this.cachedTotalSupplyGraph = {
+                week: String(week),
+                month: String(month),
+                gragh : sumGraph
             };
         }
-
+        
         return this.cachedTotalSupplyGraph;
     }
 
     async getRWAContributorsGragh(today: Date): Promise<any> {
-        let totalMemCnt: number = 0;
-        let week;
         let graph: { date: any; value: number }[] = [];
-        let results: { date: any; value: number }[] = [];
-        
+        this.logger.log(`getRWAContributorsGragh today ::: ${today}`);
+
         const now = Date.now();
         if (!this.cachedRWAContributorsGragh || now - this.lastFetchRWAContributorsGraghTime > this.cacheDurationGraph) {
             this.lastFetchRWAContributorsGraghTime = now;
-        const arr = await this.canisterService.memberSnapActor.getMonthlyMemberSnapsArr("20");
-        console.log(`arr ::: ${arr.length}`);
+            const arr = await this.canisterService.memberSnapActor.getMonthlyMemberSnapsArr("20");
             
-        for (let i = arr.length; i >= 1; i--) {
+        const dayList = Array.from({ length: arr.length }, (_, i) => {
             const d = new Date(today);
-            d.setDate(d.getDate() - i);
-
-            const yearStr = d.getFullYear();
-            const monthStr = String(d.getMonth() + 1).padStart(2, "0"); // JS 0-based
-            const dayStr = String(d.getDate()).padStart(2, "0");
-
-            const day = `${yearStr}${monthStr}${dayStr}`;
-            console.log(`day ::: ${day}`);
-
-            const snap = await this.canisterService.memberSnapActor.getDailyMemberSnap(day);
-            console.log(`snap ::: ${snap[0].snap_date}  ${snap[0].member_count}`);
-            const formatted = moment(snap[0].snap_date, "YYYYMMDD").format("YYYY-MM-DD");
-            graph.push({ date: formatted, value: Number(snap[0].member_count) });
-        }
-
-        console.log(`graph ::: ${JSON.stringify(graph)}`);
-
-        for(let j = graph.length-7; j < graph.length; j++) {
-            totalMemCnt += graph[j].value;
-            this.logger.log(`totalMemCnt ::: ${totalMemCnt}`);
-            results.push({ date: graph[j].date, value: totalMemCnt });
-        }
-
-        console.log(`results ::: ${JSON.stringify(results)}`);
-        
-        week = totalMemCnt - graph[graph.length-1].value;
-        this.logger.log(`week ::: ${week}`);
-
-        let sumGraphValue = 0;
-        const sumGraph = graph.map(item => {
-            sumGraphValue += item.value;
-            return { date: item.date, value: sumGraphValue };
+            d.setDate(d.getDate() - (arr.length - i));
+            const day = d.toISOString().slice(0, 10).replace(/-/g, ""); // YYYYMMDD
+            return day;
         });
+
+        const snaps = await Promise.all(
+            dayList.map((day) => this.canisterService.memberSnapActor.getDailyMemberSnap(day))
+        );
+
+
+        for (let i = 0; i < snaps.length; i++) {
+            const snap = snaps[i][0];
+            const date = `${snap.snap_date.slice(0, 4)}-${snap.snap_date.slice(4, 6)}-${snap.snap_date.slice(6, 8)}`;
+            graph.push({ date, value: Number(snap.member_count) });
+        }
+        
+        const getRangeSum = (range: number) =>
+            graph.slice(-range).reduce((sum, item) => sum + item.value, 0);
+
+        const week = getRangeSum(7);
+        const month = getRangeSum(30);
+
+        this.logger.log(`week ::: ${week} month ::: ${month}`);
+
+        const sumGraph = graph.reduce<{ date: string; value: number }[]>((acc, item) => {
+            const prev = acc.length ? acc[acc.length - 1].value : 0;
+            acc.push({ date: item.date, value: prev + item.value });
+            return acc;
+        }, []);
 
         this.cachedRWAContributorsGragh ={
                 week: "4481",
-                month:'',
+                month: "18820",
                 gragh : sumGraph
             };
         }   
@@ -681,56 +668,50 @@ export class AppService {
 
 
     async getTokenTransactionGragh(today: Date): Promise<any> {
-        let totalTranCnt: number = 0;
-        let week;
         let graph: { date: any; value: number }[] = [];
-        let results: { date: any; value: number }[] = [];
-
+        this.logger.log(`getTokenTransactionGragh today ::: ${today}`);
+        
         const now = Date.now();
         if (!this.cachedTotalTransactionGraph || now - this.lastFetchTotalTransactionGraphTime > this.cacheDurationGraph) {
             this.lastFetchTotalTransactionGraphTime = now;
             const arr = await this.canisterService.memberSnapActor.getMonthlyTransactionSnapsArr("20");
-            console.log(`arr ::: ${arr.length}`);
             
-         for (let i = arr.length; i >= 1; i--) {
-            const d = new Date(today);
-            d.setDate(d.getDate() - i);
+            const dayList = Array.from({ length: arr.length }, (_, i) => {
+                const d = new Date(today);
+                d.setDate(d.getDate() - (arr.length - i));
+                const day = d.toISOString().slice(0, 10).replace(/-/g, ""); // YYYYMMDD
+                return day;
+            });
 
-            const yearStr = d.getFullYear();
-            const monthStr = String(d.getMonth() + 1).padStart(2, "0"); // JS는 0-based
-            const dayStr = String(d.getDate()).padStart(2, "0");
-            const day = `${yearStr}${monthStr}${dayStr}`;
-            console.log(`day ::: ${day}`);
+            const snaps = await Promise.all(
+                dayList.map((day) => this.canisterService.memberSnapActor.getDailyTransactionSnap(day))
+            );
 
-            const snap = await this.canisterService.memberSnapActor.getDailyTransactionSnap(day);
-            console.log(`snap ::: ${snap[0].snap_date}  ${snap[0].transaction_count}`);
-            const formatted = moment(snap[0].snap_date, "YYYYMMDD").format("YYYY-MM-DD");
-            graph.push({ date: formatted, value: Number(snap[0].transaction_count) });
-        }
 
-        console.log(`graph ::: ${JSON.stringify(graph)}`);
+            for (let i = 0; i < snaps.length; i++) {
+                const snap = snaps[i][0];
+                const date = `${snap.snap_date.slice(0, 4)}-${snap.snap_date.slice(4, 6)}-${snap.snap_date.slice(6, 8)}`;
+                graph.push({ date, value: Number(snap.transaction_count) });
+            }
+            
+            const getRangeSum = (range: number) =>
+                graph.slice(-range).reduce((sum, item) => sum + item.value, 0);
 
-        for(let j = graph.length-7; j < graph.length; j++) {
-            totalTranCnt += graph[j].value;
-            this.logger.log(`totalMemCnt ::: ${totalTranCnt}`);
-            results.push({ date: graph[j].date, value: totalTranCnt });
-        }
+            const week = getRangeSum(7);
+            const month = getRangeSum(30);
 
-        console.log(`results ::: ${JSON.stringify(results)}`);
-        
-        week = totalTranCnt - graph[graph.length-1].value;
-        this.logger.log(`week ::: ${week}`);
+            this.logger.log(`week ::: ${week} month ::: ${month}`);
 
-        let sumGraphValue = 0;
-        const sumGraph = graph.map(item => {
-            sumGraphValue += item.value;
-            return { date: item.date, value: sumGraphValue };
-        });
+            const sumGraph = graph.reduce<{ date: string; value: number }[]>((acc, item) => {
+                const prev = acc.length ? acc[acc.length - 1].value : 0;
+                acc.push({ date: item.date, value: prev + item.value });
+                return acc;
+            }, []);
 
-        this.cachedTotalTransactionGraph = {
-            week: String(week),
-            month:'',
-            gragh : sumGraph
+            this.cachedTotalTransactionGraph = {
+                week: String(week),
+                month: String(month),
+                gragh : sumGraph
             };
         }
 
@@ -747,7 +728,7 @@ export class AppService {
             // this.logger.log(`totalSupply: ${totalSupply }`);
             this.lastFetchTotalSupplyTime = now;
 
-            this.cachedTotalSupply = Number(totalSupply) - 199999965;
+            this.cachedTotalSupply = Number(totalSupply);
         }
 
         return {
@@ -787,7 +768,7 @@ export class AppService {
             
         if (!this.cachedDashBoard || now - this.lastFetchDashBoardTime > this.cacheDurationTotal) {
             const length = await this.canisterService.tokenActor.get_transactions(GetTransactionLength);
-            console.log(`start : ${Number(length.log_length)-20} end ${Number(length.log_length)}`);
+            this.logger.log(`start : ${Number(length.log_length)-20} end ${Number(length.log_length)}`);
             const GetTransactionReq = ({
                         start: Number(length.log_length)-20, 
                         length: Number(length.log_length)
@@ -850,11 +831,9 @@ export class AppService {
             let transactionList: any;
             if(end > startArc) {
                 const transaction = await this.canisterService.tokenActor.get_transactions(GetTransactionReq);
-                console.log(transaction);
                 transactionList = this.parseTransactions(transaction.transactions, type, start);
             } else {
                 const transactionArc = await this.canisterService.tokenArcActor.get_transactions(GetTransactionReq);
-                console.log(transactionArc);
                 transactionList = this.parseTransactions(transactionArc.transactions, type, start);
             }
             
@@ -890,15 +869,15 @@ export class AppService {
         if(partnerIdx === 2) {
             const secretKey = process.env.TELEGRAM_BOT_TOKEN!.split(":")[1].slice(0,32).padEnd(32,'0').substring(0,32);
             id = this.telegramService.decrypt(id,secretKey);
-            console.log(`decrypted id :: ${id}`);
+            this.logger.log(`decrypted id :: ${id}`);
             principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
             if(principal[0] === undefined){
                 await this.addPrincipal(id, partnerIdx);
                 principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
             }
-            console.log(principal[0].principle);
+            this.logger.log(principal[0].principle);
             const ipl = await this.canisterService.tokenActor.icrc1_balance_of({ owner: Principal.fromText(principal[0].principle), subaccount: []});
-            console.log(ipl);
+            this.logger.log(ipl);
             
             return {
                 partnerIdx: Number(principal[0].partner_idx),
@@ -919,7 +898,7 @@ export class AppService {
                     if (res && res.length > 0) {
                         const m = res[0];
                         const ipl = await this.canisterService.tokenActor.icrc1_balance_of({ owner: Principal.fromText(m.principle), subaccount: []});
-                        console.log(ipl);
+                        this.logger.log(ipl);
                     return {
                         partnerIdx: Number(m.partner_idx),
                         principal: m.principle, 
@@ -1026,7 +1005,7 @@ export class AppService {
             requester_principal: item.requester_principal,
             unlock_total_count: item.unlock_total_count
         }
-        console.log("updateBody", updateBody);
+        this.logger.log("updateBody", updateBody);
         await this.canisterService.oracleActor.updateMusicWorkInfo(OWNER, updateBody);
     }
 
@@ -1101,15 +1080,10 @@ export class AppService {
         const list = await this.canisterService.oracleActor.getMusicContractAddress();
         
         const jsonList = JSON.parse(list);
-        // console.log("jsonlist", jsonList);
 
         const addressList = idxList.map(idx=>
             jsonList.find(item => item.idx === idx).contract || null);
         
-        // console.log("addressList", addressList);
-
-
-
         const stakerInfo = await this.canisterService.holderActor.getDailyRightsHoldersByYMD_List(addressList,  now.format('YYYY-MM-DD'));
 
         this.logger.log(`stakerInfo1 :: ${JSON.stringify(stakerInfo)}`);
@@ -1172,7 +1146,7 @@ export class AppService {
         const now = moment().utc();
         const tsSeconds = moment().unix();
         const tuneIdxArr = idxList.map(item => item.tune_idx);
-        console.log(tuneIdxArr);
+        this.logger.log(tuneIdxArr);
 
         this.sendUnlockList(tuneIdxArr, partnerIdx, OWNER_KEY);
         
@@ -1196,7 +1170,7 @@ export class AppService {
         const addressList = tuneIdxArr.map(idx=>
             jsonList.find(item => item.idx === idx).contract || null);
         
-        console.log("addressList", addressList);
+        this.logger.log("addressList", addressList);
 
 
 
@@ -1427,7 +1401,7 @@ export class AppService {
             let resData: any;
             if(partnerIdx === 2) {
                 resData = await axios.get('https://beatapi.khans.io/tune/purchase');
-                console.log(resData.data.data);
+                this.logger.log(resData.data.data);
                 resData = resData.data.data;
                 if(resData.data === '[]') {
                     this.logger.log('Nothing to update');
@@ -1435,7 +1409,7 @@ export class AppService {
                 }
             } else if(partnerIdx === 3){
                 resData = await axios.get('https://beatkpi.khans.io/api/tune/purchase');
-                console.log(resData.data.data);
+                this.logger.log(resData.data.data);
                 resData = resData.data.data;
                 if(resData.data === '[]') {
                     this.logger.log('Nothing to update');
@@ -1446,13 +1420,13 @@ export class AppService {
                 const list = await this.canisterService.oracleActor.getMusicContractAddress();
                 const jsonList = JSON.parse(list);
 
-                console.log(resData[idx].tune_idx);
+                this.logger.log(resData[idx].tune_idx);
                 const addressList: any[] = [];
 
                 jsonList.filter(item => item.idx === resData[idx].tune_idx && item.contract)
                         .forEach(item => addressList.push(item.contract));
                     
-                console.log("addressList", addressList);
+                this.logger.log("addressList", addressList);
                 
                 const stakerInfo = await this.canisterService.holderActor.getDailyRightsHoldersByYMD_List(addressList,  now.format('YYYY-MM-DD'));
         

@@ -95,7 +95,7 @@ export class AppController {
             await this.appService.updateMusicWorkInfo(body.idxList, body.unlock_count_list);
             return { success: true };
         } catch(e) {
-            console.log("error", e);
+            this.logger.error("error", e);
             return { success: false };
         }
     }
@@ -108,7 +108,7 @@ export class AppController {
         try {
             await this.appService.addPartner(body.partnerIdx, body.partner_name);
         } catch(e) {
-            console.log("error", e.getMessage);
+            this.logger.error("error", e.getMessage);
             return { success: false };
         }
         return { success: true };
@@ -122,7 +122,7 @@ export class AppController {
         try {
             await this.appService.addRequesterId(body.requestName, body.requester_principal, body.can_approve);
         } catch(e) {
-            console.log("error", e.getMessage);
+            this.logger.error("error", e.getMessage);
             return { success: false };
         }
         return { success: true };
@@ -139,7 +139,7 @@ export class AppController {
 
              return { success: true , data};
         } catch(e) {
-            console.log("error",e);
+            this.logger.error("error",e);
             return { success: false };
         }
 
@@ -156,7 +156,7 @@ export class AppController {
 
              return { success: true , data};
         } catch(e) {
-            console.log("error",e);
+            this.logger.error("error",e);
             return { success: false };
         }
 
@@ -172,7 +172,7 @@ export class AppController {
 
              return { success: true , data};
         } catch(e) {
-            console.log("error",e);
+            this.logger.error("error",e);
             return { success: false };
         }
 
@@ -184,7 +184,7 @@ export class AppController {
             const response = await this.appService.addRightsHolder();
             this.logger.log(response);
         }   catch(e) {
-            console.log("error",e);
+            this.logger.error("error",e);
             return { success: false };
         }
 
@@ -257,7 +257,7 @@ export class AppController {
             const response = await this.mintService.mintToken(body.id, body.partnerIdx, body.mintType, body.amount);
             return { success: true , response};
         } catch(e) {
-            console.log("error",e);
+            this.logger.error("error",e);
             return { success: false };
         }
     }

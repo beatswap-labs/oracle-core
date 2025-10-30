@@ -11,7 +11,7 @@ const logger = new Logger('MintWorker');
 
 (async () => {
   canister = await createCanisterService();
-  console.log("Worker: canister service ready");
+  logger.log("Worker: canister service ready");
 })();
 
 parentPort?.on('message', async (data) => {

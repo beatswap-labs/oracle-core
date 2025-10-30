@@ -105,7 +105,7 @@ export class BeatSwapController {
         const response = await this.appService.addPrincipal(body.id, body.partnerIdx);
         return { success: true , response};
         } catch(e) {
-            console.log("error",e);
+            this.logger.error("error",e);
             return { success: false };
         }
     }
