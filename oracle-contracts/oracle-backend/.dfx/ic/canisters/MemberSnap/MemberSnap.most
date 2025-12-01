@@ -1,18 +1,28 @@
 // Version: 1.0.0
-type DailyMemberSnap__151271268 = {member_count : Nat; snap_date : Text};
-type DailyRoyaltySnap__758705722 = {snap_date : Text; total_royalty : Nat};
-type DailyTransactionSnap__909941527 =
+type DailyMemberSnap__119185103 = {member_count : Nat; snap_date : Text};
+type DailyRoyaltySnap__948777565 = {snap_date : Text; total_royalty : Nat};
+type DailyTransactionSnap__540808750 =
   {snap_date : Text; transaction_count : Nat};
 type List__918950244<T> = ?(T, List__918950244<T>);
+type MonthlyIPLSnapV2__511619571 =
+  {last_idx : Nat; snap_date : Text; snap_idx : Nat; snap_principal : Text};
+type MonthlyIPLSnap__63098925 =
+  {snap_date : Text; snap_idx : Nat; snap_principal : Text};
 actor {
   stable var DailyMemberSnapData :
-    ?(DailyMemberSnap__151271268,
-      List__918950244<DailyMemberSnap__151271268>);
+    ?(DailyMemberSnap__119185103,
+      List__918950244<DailyMemberSnap__119185103>);
   stable var DailyRoyaltySnapData :
-    ?(DailyRoyaltySnap__758705722,
-      List__918950244<DailyRoyaltySnap__758705722>);
+    ?(DailyRoyaltySnap__948777565,
+      List__918950244<DailyRoyaltySnap__948777565>);
   stable var DailyTransactionSnapData :
-    ?(DailyTransactionSnap__909941527,
-      List__918950244<DailyTransactionSnap__909941527>);
-  stable var canister_owner : ?Text
+    ?(DailyTransactionSnap__540808750,
+      List__918950244<DailyTransactionSnap__540808750>);
+  stable var MonthlyIPLSnapData :
+    ?(MonthlyIPLSnap__63098925, List__918950244<MonthlyIPLSnap__63098925>);
+  stable var MonthlyIPLSnapDataV2 :
+    ?(MonthlyIPLSnapV2__511619571,
+      List__918950244<MonthlyIPLSnapV2__511619571>);
+  stable var canister_owner : ?Text;
+  stable var snap_lastindex : Nat
 };

@@ -1,3 +1,16 @@
+type MonthlyIPLSnapV2 = 
+ record {
+   last_idx: nat;
+   snap_date: text;
+   snap_idx: nat;
+   snap_principal: text;
+ };
+type MonthlyIPLSnap = 
+ record {
+   snap_date: text;
+   snap_idx: nat;
+   snap_principal: text;
+ };
 type DailyTransactionSnap = 
  record {
    snap_date: text;
@@ -20,10 +33,17 @@ service : {
    nat) -> (bool);
   addDailyTransactionSnap: (owner: text, snap_date: text, transaction_count:
    nat) -> (bool);
+  addMonthlyIPLSnap: (owner: text, snap_date: text, snap_principal: text,
+   snap_idx: nat) -> (bool);
+  addMonthlyIPLSnapV2: (owner: text, snap_date: text, snap_principal: 
+   text, snap_idx: nat, last_idx: nat) -> (bool);
   getDailyMemberSnap: (snap_date: text) -> (opt DailyMemberSnap) query;
   getDailyRoyaltySnap: (snap_date: text) -> (opt DailyRoyaltySnap) query;
   getDailyTransactionSnap: (snap_date: text) ->
    (opt DailyTransactionSnap) query;
+  getMonthlyIPLSnapsArr: (snap_principal: text) -> (vec MonthlyIPLSnap) query;
+  getMonthlyIPLSnapsArrV2: (snap_principal: text) ->
+   (vec MonthlyIPLSnapV2) query;
   getMonthlyMemberSnapsArr: (month: text) -> (vec DailyMemberSnap) query;
   getMonthlyMemberSnapsWithTotal: (month: text) ->
    (record {

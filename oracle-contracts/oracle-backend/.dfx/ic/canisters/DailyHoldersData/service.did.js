@@ -28,6 +28,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(DailyRightsHolders)],
         ['query'],
       ),
+    'removeDailyRightsHoldersByYMD' : IDL.Func(
+        [IDL.Text, IDL.Text],
+        [IDL.Text],
+        [],
+      ),
     'setCanisterOwner' : IDL.Func([IDL.Text], [IDL.Text], []),
     'updateCanisterOwner' : IDL.Func(
         [IDL.Opt(IDL.Text), IDL.Opt(IDL.Text)],

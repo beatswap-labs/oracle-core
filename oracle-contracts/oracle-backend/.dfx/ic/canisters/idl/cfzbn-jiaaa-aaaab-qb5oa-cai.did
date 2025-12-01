@@ -7,13 +7,17 @@ type Member =
    user: text;
  };
 service : {
-  addMember: (text, Member) -> (nat);
-  addMembers: (text, vec Member) -> (nat);
-  getAllMembers: (text, nat, nat) -> (vec Member);
-  getMemberByIdx: (nat) -> (opt Member) query;
-  getMemberByPartnerIdxAndUser: (nat, text) -> (opt Member) query;
-  getMemberByPrinciple: (text) -> (opt Member) query;
+  addMember: (owner: text, m: Member) -> (nat);
+  addMembers: (owner: text, members: vec Member) -> (nat);
+  getAllMembers: (owner: text, start: nat, end: nat) -> (vec Member);
+  getMemberByIdx: (idx: nat) -> (opt Member) query;
+  getMemberByPartnerIdx: (owner: text, partner_idx: nat) ->
+   (vec Member) query;
+  getMemberByPartnerIdxAndUser: (partner_idx: nat, user: text) ->
+   (opt Member) query;
+  getMemberByPrinciple: (principle: text) -> (opt Member) query;
+  getMemberCountByPartnerIdx: (partner_idx: nat) -> (nat) query;
   getMemberRowCnt: () -> (nat) query;
-  setCanisterOwner: (text) -> (text);
-  updateCanisterOwner: (opt text, opt text) -> (text);
+  setCanisterOwner: (newOwner: text) -> (text);
+  updateCanisterOwner: (base: opt text, newbase: opt text) -> (text);
 }

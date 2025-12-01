@@ -21,6 +21,7 @@ export interface _SERVICE {
     [Array<string>, string],
     Array<DailyRightsHolders>
   >,
+  'removeDailyRightsHoldersByYMD' : ActorMethod<[string, string], string>,
   'setCanisterOwner' : ActorMethod<[string], string>,
   'updateCanisterOwner' : ActorMethod<[[] | [string], [] | [string]], string>,
 }

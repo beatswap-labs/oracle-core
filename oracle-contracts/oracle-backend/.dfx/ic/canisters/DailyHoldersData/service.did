@@ -7,12 +7,14 @@ type DailyRightsHolders =
    verification_date: text;
  };
 service : {
-  addDailyRightsHoldersData: (text, text) -> (text);
+  addDailyRightsHoldersData: (owner: text, data: text) -> (text);
   getDailyHoldersRowCnt: () -> (nat) query;
-  getDailyRightsHolderCountByYMD: (text) -> (nat) query;
-  getDailyRightsHoldersByYMD: (text, text) -> (vec DailyRightsHolders) query;
-  getDailyRightsHoldersByYMD_List: (vec text, text) ->
-   (vec DailyRightsHolders) query;
-  setCanisterOwner: (text) -> (text);
-  updateCanisterOwner: (opt text, opt text) -> (text);
+  getDailyRightsHolderCountByYMD: (ymd: text) -> (nat) query;
+  getDailyRightsHoldersByYMD: (neighboring_token_address: text, ymd: 
+   text) -> (vec DailyRightsHolders) query;
+  getDailyRightsHoldersByYMD_List: (neighboring_token_addresses: vec text,
+   ymd: text) -> (vec DailyRightsHolders) query;
+  removeDailyRightsHoldersByYMD: (owner: text, ymd: text) -> (text);
+  setCanisterOwner: (newOwner: text) -> (text);
+  updateCanisterOwner: (base: opt text, newbase: opt text) -> (text);
 }

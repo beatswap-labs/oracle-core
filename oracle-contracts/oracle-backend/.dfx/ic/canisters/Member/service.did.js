@@ -15,12 +15,18 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'getMemberByIdx' : IDL.Func([IDL.Nat], [IDL.Opt(Member)], ['query']),
+    'getMemberByPartnerIdx' : IDL.Func(
+        [IDL.Text, IDL.Nat],
+        [IDL.Vec(Member)],
+        ['query'],
+      ),
     'getMemberByPartnerIdxAndUser' : IDL.Func(
         [IDL.Nat, IDL.Text],
         [IDL.Opt(Member)],
         ['query'],
       ),
     'getMemberByPrinciple' : IDL.Func([IDL.Text], [IDL.Opt(Member)], ['query']),
+    'getMemberCountByPartnerIdx' : IDL.Func([IDL.Nat], [IDL.Nat], ['query']),
     'getMemberRowCnt' : IDL.Func([], [IDL.Nat], ['query']),
     'setCanisterOwner' : IDL.Func([IDL.Text], [IDL.Text], []),
     'updateCanisterOwner' : IDL.Func(

@@ -11,6 +11,17 @@ export const idlFactory = ({ IDL }) => {
     'transaction_count' : IDL.Nat,
     'snap_date' : IDL.Text,
   });
+  const MonthlyIPLSnap = IDL.Record({
+    'snap_idx' : IDL.Nat,
+    'snap_principal' : IDL.Text,
+    'snap_date' : IDL.Text,
+  });
+  const MonthlyIPLSnapV2 = IDL.Record({
+    'snap_idx' : IDL.Nat,
+    'snap_principal' : IDL.Text,
+    'snap_date' : IDL.Text,
+    'last_idx' : IDL.Nat,
+  });
   return IDL.Service({
     'addDailyMemberSnap' : IDL.Func(
         [IDL.Text, IDL.Text, IDL.Nat],
@@ -27,6 +38,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Bool],
         [],
       ),
+    'addMonthlyIPLSnap' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Text, IDL.Nat],
+        [IDL.Bool],
+        [],
+      ),
     'getDailyMemberSnap' : IDL.Func(
         [IDL.Text],
         [IDL.Opt(DailyMemberSnap)],
@@ -40,6 +56,16 @@ export const idlFactory = ({ IDL }) => {
     'getDailyTransactionSnap' : IDL.Func(
         [IDL.Text],
         [IDL.Opt(DailyTransactionSnap)],
+        ['query'],
+      ),
+    'getMonthlyIPLSnapsArr' : IDL.Func(
+        [IDL.Text],
+        [IDL.Vec(MonthlyIPLSnap)],
+        ['query'],
+      ),
+    'getMonthlyIPLSnapsArrV2' : IDL.Func(
+        [IDL.Text],
+        [IDL.Vec(MonthlyIPLSnapV2)],
         ['query'],
       ),
     'getMonthlyMemberSnapsArr' : IDL.Func(
@@ -82,7 +108,9 @@ export const idlFactory = ({ IDL }) => {
         ],
         ['query'],
       ),
+    'getSnapLastIndex' : IDL.Func([], [IDL.Nat], ['query']),
     'setCanisterOwner' : IDL.Func([IDL.Text], [IDL.Text], []),
+    'setSnapLastIndex' : IDL.Func([IDL.Text, IDL.Nat], [IDL.Bool], []),
     'updateCanisterOwner' : IDL.Func(
         [IDL.Opt(IDL.Text), IDL.Opt(IDL.Text)],
         [IDL.Text],
