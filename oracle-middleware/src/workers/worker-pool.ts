@@ -6,14 +6,14 @@ export class WorkerPool {
   private queue: any[] = [];
   private idleWorkers: Worker[] = [];
 
-  constructor(private size = 4) {
+  constructor(private size = 16) {
     for (let i = 0; i < size; i++) {
       this.createWorker();
     }
   }
 
   private createWorker() {
-    const worker = new Worker(join(__dirname, './mint.worker.js'));
+    const worker = new Worker(join(__dirname, './service.worker.js'));
     worker.on('message', (msg) => {
       const { resolve } = (worker as any).currentTask;
       resolve(msg);

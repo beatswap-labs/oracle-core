@@ -7,6 +7,7 @@ export async function createCanisterService() {
   const config = new ConfigService();
   const MEMBER_CANISTER_ID = config.get<string>('MEMBER_CANISTER_ID');
   const MINT_CANISTER_ID = config.get<string>('MINT_CANISTER_ID');
+  const TOKEN_CANISTER_ID = config.get<string>('TOKEN_CANISTER_ID');
 
   const agent = new HttpAgent({host: 'https://ic0.app'});
     if (!MEMBER_CANISTER_ID) {
@@ -17,6 +18,11 @@ export async function createCanisterService() {
         this.logger.error('Cannot find MINT_CANISTER_ID');
         throw new Error('Cannot find MINT_CANISTER_ID');
     }
+    if (!TOKEN_CANISTER_ID) {
+        this.logger.error('Cannot find MINT_CANISTER_ID');
+        throw new Error('Cannot find MINT_CANISTER_ID');
+    }
+
 
   const memberActor = Actor.createActor(CanisterFactories.member, {
     agent,
@@ -28,5 +34,10 @@ export async function createCanisterService() {
     canisterId: MINT_CANISTER_ID,
   });
 
-  return { memberActor, mintActor };
+  const tokenActor = Actor.createActor(CanisterFactories.token, {
+    agent,
+    canisterId: TOKEN_CANISTER_ID,
+  });
+
+  return { memberActor, mintActor, tokenActor };
 }
