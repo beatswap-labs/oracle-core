@@ -13,9 +13,9 @@ export class AppController {
     private recentRequests = new Map<string, number>(); // principal -> timestamp
     private REQUEST_INTERVAL = 43200000; // 12시간
 
-    @Get('test')
+    @Post('test')
     async test() {
-        return { status: 'success' };
+        return this.appService.addPaykhanMusicWorkInfo();
     }
 
     //Music info list

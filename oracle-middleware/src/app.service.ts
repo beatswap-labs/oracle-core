@@ -175,41 +175,12 @@ export class AppService {
         const musicInfo = await this.canisterService.oracleActor.getMusicWorkInfos();
         const now = moment().tz('Asia/Seoul');
 
-
-        this.logger.log(`musicInfo length ${musicInfo.length}`);
         for(let i = 0; i < musicInfo.length; i++) {
-            const holder = await this.canisterService.holderActor.getDailyRightsHoldersByYMD(musicInfo[i].op_neighboring_token_address, now.format('YYYYMMDD'));
-            this.logger.log(`holder data ::: ${musicInfo[i].idx} -- ${JSON.stringify(holder)}`);
-            if(JSON.stringify(holder) !== '[]') {
-                this.logger.log('Data already exists');
+            this.logger.log(`musicInfo length ${musicInfo.length}`);
+            const data = await this.requestHolderRetry(web3Router, musicInfo, i, this.logger);
+            if (!data) {
                 continue;
             }
-
-            const req = httpMocks.createRequest({
-                method: 'GET',
-                url: '/getStaker',
-                query: { contract_address: musicInfo[i].op_neighboring_token_address},
-            });
-            this.logger.log(`song contract_address ${musicInfo[i].op_neighboring_token_address}`);
-        
-            const res = httpMocks.createResponse({ eventEmitter: EventEmitter });
-    
-            await new Promise((resolve, reject) => {
-                res.on('end', resolve);
-                res.on('finish', resolve);
-                res.on('error', reject);
-    
-                web3Router.handle(req, res, (err:any) => {
-                    if(err) return reject(err);
-    
-                    setImmediate(() => {
-                    if(!res.writableEnded) {
-                        reject(new Error('Router not Response'));
-                    }
-                    })
-                })
-            });
-            const data = res._getData();
 
             const reqData: rightHolderReq[] = [];
 
@@ -226,6 +197,7 @@ export class AppService {
             }
         }
     }
+    
 
     async addDailyTransactionSnap(date: string, cnt: number = 0) {
         const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
@@ -374,7 +346,11 @@ export class AppService {
             this.logger.log(`response url ::: ${url}`);
             
             
-            await this.canisterService.oracleActor.getMusicInfoByPaykhanData(OWNER_KEY, data);
+            // await this.canisterService.oracleActor.getMusicInfoByPaykhanData(OWNER_KEY, data);
+            for(let i = 0; i < JSON.parse(data).length; i++) {
+                this.logger.log(`added idx ::: ${JSON.parse(data)[i].idx}`);
+                // await this.addRightsHolder(Number(JSON.parse(data)[i].idx));
+            }   
             
         } catch(error) {
             this.logger.log(error);
@@ -2149,5 +2125,50 @@ export class AppService {
                 }
             }
 
+    }
+
+    async requestHolderRetry(web3Router, musicInfo, i, logger, maxRetry = 3, delayMs = 3000) {
+        for (let attempt = 1; attempt <= maxRetry; attempt++) {
+            try {
+                const req = httpMocks.createRequest({
+                    method: 'GET',
+                    url: '/getStaker',
+                    query: { contract_address: musicInfo[i].op_neighboring_token_address },
+                });
+                logger.log(`song contract_address ${musicInfo[i].op_neighboring_token_address}`);
+
+                const res = httpMocks.createResponse({ eventEmitter: EventEmitter });
+
+                await new Promise((resolve, reject) => {
+                    res.on('end', resolve);
+                    res.on('finish', resolve);
+                    res.on('error', reject);
+
+                    web3Router.handle(req, res, (err: any) => {
+                        if (err) return reject(err);
+
+                        setImmediate(() => {
+                            if (!res.writableEnded) {
+                                reject(new Error('Router not Response'));
+                            }
+                        });
+                    });
+                });
+
+                // 성공 시 바로 반환
+                return res._getData();
+
+            } catch (err) {
+                logger.error(`getStaker attempt ${attempt}/${maxRetry} failed: ${err.message}`);
+
+                if (attempt < maxRetry) {
+                    // 다음 재시도 전 3초 딜레이
+                    await new Promise(r => setTimeout(r, delayMs));
+                } else {
+                    logger.error(`getStaker failed after ${maxRetry} attempts. Skipping...`);
+                    return null; // 또는 throw err
+                }
+            }
+        }
     }
 }
