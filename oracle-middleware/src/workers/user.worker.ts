@@ -172,10 +172,10 @@ parentPort?.on('message', async (data) => {
                    
                       const res2 = await canister.memberActor.getMemberByPartnerIdxAndUser(idx, lowerId);
   
-                      // 두 결과 합치기
+                      // merge two results
                       const merged = [...(res1 || []), ...(res2 || [])];
   
-                      // 아무것도 없으면 null 반환
+                      // undifined null
                       if (merged.length === 0) return null;
   
                       const m = merged[0];
@@ -270,7 +270,7 @@ parentPort?.on('message', async (data) => {
                 try {
                 const dfxBin = await resolveDfx();
 
-                const identityPath = `/tmp/dfx_identity_${uniqueId}`; // 고유 폴더
+                const identityPath = `/tmp/dfx_identity_${uniqueId}`;
 
                 const env = {
                     ...process.env,

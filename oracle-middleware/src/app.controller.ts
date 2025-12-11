@@ -324,7 +324,7 @@ export class AppController {
     }
 
 
-    //addIplMintbatch batch:Q
+    //addIplMintbatch
     @Post('addIplMintbatch')
     async addIplMintbatch(@Body() body: oracleDto) {
         this.logger.log(`addIplMintbatch Call ::  ${body.partnerIdx} || ${body.idx}`);
@@ -332,7 +332,7 @@ export class AppController {
         return response;
     }
 
-        //ipl balance
+    //ipl balance
     @Post('getIplBalance')
     async getIplBalance(@Body() body: oracleDto) {
         this.logger.log(`getIplBalance Call ::: ${body.principal}`);

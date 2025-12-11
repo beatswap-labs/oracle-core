@@ -854,91 +854,6 @@ export class AppService {
         return await this.canisterService.memberActor.getPartners();
     }
 
-    // async getPrincipalById(partnerIdx: number, id: string): Promise<any> {
-    //     let principal:any[] = [];
-    //     if(partnerIdx === 2 || partnerIdx === 5) { 
-    //         const secretKey = process.env.TELEGRAM_BOT_TOKEN!.split(":")[1].slice(0,32).padEnd(32,'0').substring(0,32);
-    //         id = this.telegramService.decrypt(id);
-    //         principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
-    //         if(principal[0] === undefined){
-    //             if(partnerIdx === 5) {
-    //                 principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);    
-    //             } else { 
-    //                 partnerIdx = 5; //new telegram member
-    //                 await this.addPrincipal(id, partnerIdx);
-    //                 principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
-    //             }
-    //         }
-    //         this.logger.log(`principal ::: ${principal[0].principle}`);
-    //         const ipl = await this.canisterService.tokenActor.icrc1_balance_of({ owner: Principal.fromText(principal[0].principle), subaccount: []});
-            
-    //         return {
-    //             partnerIdx: Number(principal[0].partner_idx),
-    //             principal: principal[0].principle,
-    //             balance: Number(ipl),
-    //             created_at: principal[0].created_at
-    //         };
-    //     } else {
-    //         const partnerIdxList = [1, 3, 6];
-            
-    //         id = await getAddress(id);
-    //         const lowerId = await id.toLowerCase();
-    //         principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
-    //         if(principal[0] === undefined){
-    //             principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, lowerId);
-    //             if(principal[0] === undefined) {
-    //                 partnerIdx = 6; //new evm member
-    //                 await this.addPrincipal(id, partnerIdx);
-    //             }
-    //         }
-            
-    //         const results = await Promise.all(
-    //             partnerIdxList.map(async (idx) => {
-    //                 let res1 = [];
-    //                 if(idx === 1){
-    //                     const resId = await axios.get(`https://paykhan.org/nftAudio/getPaykhanIdByAddress?address=${id}`);
-    //                     const pid = resId.data.replace(/[^a-zA-Z0-9._@-]/g, 'd');
-    //                     res1 = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(idx, pid);
-    //                 } else {
-    //                     res1 = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(idx, id);
-    //                 }
-                 
-    //                 const res2 = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(idx, lowerId);
-
-    //                 this.logger.log(`id :: ${id} id lower :: ${lowerId}`);
-
-    //                 // 두 결과 합치기
-    //                 const merged = [...(res1 || []), ...(res2 || [])];
-
-    //                 // 아무것도 없으면 null 반환
-    //                 if (merged.length === 0) return null;
-
-    //                 const m = merged[0];
-
-                    
-    //                 const results2: any[] = [];
-                    
-    //                 for (const m of merged) {                  
-    //                     const ipl = await this.canisterService.tokenActor.icrc1_balance_of({ owner: Principal.fromText(m.principle), subaccount: []});
-                        
-    //                     results2.push({
-    //                         partnerIdx: Number(m.partner_idx),
-    //                         principal: m.principle,
-    //                         balance: Number(ipl),
-    //                         created_at: m.created_at,
-    //                     });
-    //                 }
-                
-    //                 return results2
-    //             })
-    //         );
-
-    //         // null filter
-    //         const memberList = results.filter(Boolean);
-    //         return memberList.flat();
-    //     }
-    // }    
-
     async getIplBalance(principal: string): Promise<Number> {
         const balance = await this.canisterService.tokenActor.icrc1_balance_of({
                             owner: Principal.fromText(principal),
@@ -1876,11 +1791,6 @@ export class AppService {
         const chunk = idxList.slice(i, i + 50);
 
         for (const idx of chunk) {
-            // this.oracleActor.incrementVerificationUnlockCount(partnerIdx, idx, ownerKey)
-            //         .catch((err) => console.error("incrementVerificationUnlockCount:", err));
-
-            // this.oracleActor.incrementUnlockedAccumulated(1, ownerKey)
-            //     .catch((err) => console.error("incrementUnlockedAccumulated:", err));
 
             this.canisterService.oracleActor.incrementMusicWorkInfoUnlockCount(idx, ownerKey)
                 .catch((err) => console.error("incrementMusicWorkInfoUnlockCount:", err));
@@ -1939,11 +1849,6 @@ export class AppService {
         const chunk = idxList.slice(i, i + 50);
 
         for (const idx of chunk) {
-            // this.oracleActor.incrementVerificationUnlockCount(partnerIdx, idx, ownerKey)
-            //         .catch((err) => console.error("incrementVerificationUnlockCount:", err));
-
-            // this.oracleActor.incrementUnlockedAccumulated(1, ownerKey)
-            //     .catch((err) => console.error("incrementUnlockedAccumulated:", err));
 
             this.canisterService.oracleActor.incrementMusicWorkInfoUnlockCount(idx, ownerKey)
                 .catch((err) => console.error("incrementMusicWorkInfoUnlockCount:", err));
@@ -2185,7 +2090,6 @@ export class AppService {
             amount: String(tx.amount),
             }));
 
-            // this.logger.log(util.inspect(stringifiedTx, { depth: null, colors: true }));
         return { response: stringifiedTx };
     }
 
@@ -2234,13 +2138,11 @@ export class AppService {
                     await Promise.all(
                         Array.from(snapMap.entries()).map(([principal, amount]) =>
                             this.canisterService.memberSnapActor.addMonthlyIPLSnap(OWNER_KEY, date, principal, amount)
-                        // .then(() => this.logger.log(`Adding snap ${principal} amount ${amount}`))
                         )
                 );
                 await this.canisterService.memberSnapActor.setSnapLastIndex(OWNER_KEY, numberifiedTx[numberifiedTx.length-1].index);
-                    this.logger.log('✅ All snapMap entries sent!');
+                    this.logger.log('All snapMap entries sent!');
                     return this.addMonthlyIPLSnap(date);
-                    // return { response: 'Monthly IPL Snap Date Processed' };
                 } else {
                     this.logger.log(`Archive timestamp ::: ${txDate} > ${cutoffDate}`);
                     return { response: 'Monthly IPL Snap Date Close' };
