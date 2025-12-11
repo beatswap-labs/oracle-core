@@ -10,6 +10,9 @@ import { oracleDto } from './dto/oracleDto.js';
 import { exec } from "child_process";
 import * as zlib from 'zlib';
 import { CanisterService } from './service/canister.service';
+import * as util from 'util';
+import { ethers } from 'ethers';
+
 
 
 const web3Router = require('./web3/web.js').default;
@@ -74,7 +77,7 @@ interface rightHolderReq {
 @Injectable()
 export class AppService {
 
-    constructor(private configService: ConfigService, private telegramService: TelegramService, private canisterService: CanisterService) {}
+    constructor(private configService: ConfigService, private telegramService: TelegramService, private canisterService: CanisterService,) {}
     private readonly logger = new Logger(AppService.name);
     
 
@@ -110,61 +113,55 @@ export class AppService {
     private readonly cacheDurationGraph = 3 * 60 * 60 * 1000; // 3hour
     private readonly cacheDurationUSD = 24 * 60 * 60 * 1000; // 1day
 
-    async addRightsHolder() {
+    async addRightsHolder(idx: number) {
         const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
 
         if(!OWNER_KEY){
             this.logger.error('Cannot find OWNER_KEY');
             throw new Error('Cannot find OWNER_KEY');
         }
-        const musicInfo = await this.canisterService.oracleActor.getMusicWorkInfos();
+        const musicInfo = await this.canisterService.oracleActor.getMusicInfoByIdx(idx);
         const now = moment().utc();
-        for(let i = 0; i < musicInfo.length; i++) {
-            const holder = await this.canisterService.holderActor.getDailyRightsHoldersByYMD(musicInfo[i].op_neighboring_token_address, now.format('YYYY-MM-DD'));
-            if(JSON.stringify(holder) !== '[]') {
-                this.logger.log('Data already exists');
-                continue;
-            }
+        this.logger.log(`song contract_address ${musicInfo[0].op_neighboring_token_address}`);
+        const req = httpMocks.createRequest({
+            method: 'GET',
+            url: '/getStaker',
+            query: { contract_address: musicInfo[0].op_neighboring_token_address},
+        });
         
-            const req = httpMocks.createRequest({
-                method: 'GET',
-                url: '/getStaker',
-                query: { contract_address: musicInfo[i].op_neighboring_token_address},
-            });
-            this.logger.log(`song contract_address :: ${musicInfo[i].op_neighboring_token_address}`);
-        
-            const res = httpMocks.createResponse({ eventEmitter: EventEmitter });
+        const res = httpMocks.createResponse({ eventEmitter: EventEmitter });
 
-            await new Promise((resolve, reject) => {
-                res.on('end', resolve);
-                res.on('finish', resolve);
-                res.on('error', reject);
+        await new Promise((resolve, reject) => {
+            res.on('end', resolve);
+            res.on('finish', resolve);
+            res.on('error', reject);
 
-                web3Router.handle(req, res, (err:any) => {
-                    if(err) return reject(err);
+            web3Router.handle(req, res, (err:any) => {
+                if(err) return reject(err);
 
-                    setImmediate(() => {
-                    if(!res.writableEnded) {
-                        reject(new Error('Router not Response'));
-                    }
-                    })
+                setImmediate(() => {
+                if(!res.writableEnded) {
+                    reject(new Error('Router not Response'));
+                }
                 })
-            });
-            const data = res._getData();
+            })
+        });
+        const data = res._getData();
 
-            const reqData: rightHolderReq[] = [];
+        const reqData: rightHolderReq[] = [];
 
-           for(let j = 0; j < data.length; j++) {
-                reqData.push({ neighboring_token_address: musicInfo[i].op_neighboring_token_address, neighboring_holder_staked_address: data[j].userMetaId, staked_amount: data[j].userStakingAmount.toString(), verification_date: now.format('YYYY-MM-DD'), neighboring_holder_staked_mainnet: 'Optimism'})
-            }
-            
-            try {
-                // this.logger.log(`reqData::: ${JSON.stringify(reqData)}`);
-                await this.canisterService.holderActor.addDailyRightsHoldersData(OWNER_KEY, JSON.stringify(reqData));
-            } catch (err) {
-                this.logger.error(`addDailyRightsHolder rate ::: ${JSON.stringify(reqData)}`, err.message);
-            }
+        for(let j = 0; j < data.length; j++) {
+            reqData.push({ neighboring_token_address: musicInfo[0].op_neighboring_token_address, neighboring_holder_staked_address: data[j].userMetaId, staked_amount: data[j].userStakingAmount.toString(), verification_date: now.format('YYYY-MM-DD'), neighboring_holder_staked_mainnet: 'Optimism'})
         }
+        
+        try {
+            this.logger.log(`addRightsHolder reqData ::: ${JSON.stringify(reqData)}`);
+            const res = await this.canisterService.holderActor.addDailyRightsHoldersData(OWNER_KEY, JSON.stringify(reqData));
+            this.logger.log('reponse ::',res);
+        } catch (err) {
+            this.logger.error(`addDailyRightsHolder rate ::: ${JSON.stringify(reqData)}`, err.message);
+        }
+    
     }
 
     async addDailyRightsHolder() {
@@ -181,6 +178,13 @@ export class AppService {
 
         this.logger.log(`musicInfo length ${musicInfo.length}`);
         for(let i = 0; i < musicInfo.length; i++) {
+            const holder = await this.canisterService.holderActor.getDailyRightsHoldersByYMD(musicInfo[i].op_neighboring_token_address, now.format('YYYYMMDD'));
+            this.logger.log(`holder data ::: ${musicInfo[i].idx} -- ${JSON.stringify(holder)}`);
+            if(JSON.stringify(holder) !== '[]') {
+                this.logger.log('Data already exists');
+                continue;
+            }
+
             const req = httpMocks.createRequest({
                 method: 'GET',
                 url: '/getStaker',
@@ -214,8 +218,9 @@ export class AppService {
             }
             
             try {
-                // this.logger.log(`reqData::: ${JSON.stringify(reqData)}`);
-                await this.canisterService.holderActor.addDailyRightsHoldersData(OWNER_KEY, JSON.stringify(reqData));
+                this.logger.log(`addRightsHolder reqData ::: ${JSON.stringify(reqData)}`);
+                const res = await this.canisterService.holderActor.addDailyRightsHoldersData(OWNER_KEY, JSON.stringify(reqData));
+                this.logger.log('reponse ::',res);
             } catch (err) {
                 this.logger.error(`addDailyRightsHolder rate ::: ${JSON.stringify(reqData)}`, err.message);
             }
@@ -271,7 +276,6 @@ export class AppService {
         const res = await this.canisterService.memberSnapActor.addDailyRoyaltySnap(OWNER_KEY, date, cnt);
         this.logger.log('reponse ::',res);
     }
-
 
     async addMusicInfo(): Promise<any> {
         const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
@@ -345,15 +349,21 @@ export class AppService {
         return this.addVerificationUnlockListPayKhan(idx);
     }
 
-    async addPaykhanMusicWorkInfo(n: number = 0): Promise<any> {
+    async addPaykhanMusicWorkInfo(): Promise<any> {
         const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
+        const paykhanSongUrl = this.configService.get<string>('PAYKHAN_SONG_URL');
 
-        if(!OWNER_KEY){
-            this.logger.error('Cannot find OWNER_KEY');
-            throw new Error('Cannot find OWNER_KEY');
+        if(!OWNER_KEY && !paykhanSongUrl){
+            this.logger.error('Cannot find Config SET');
+            throw new Error('Cannot find Config SET');
         }
 
-        const url = "https://paykhan.org/nftAudio/getMusicInfoIcp?idx="+n;
+        const res = await this.canisterService.oracleActor.getMusicWorkInfosByOwner(OWNER_KEY);
+
+        const lastMusicIdx = res[0].idx;
+        this.logger.log(`last idx ::: ${lastMusicIdx}`);
+
+        const url = paykhanSongUrl!+lastMusicIdx;
        
         try {
             const response = await fetch(url);
@@ -361,8 +371,6 @@ export class AppService {
             if(data == '[]') {
                 return {response: 'Nothing to update'};
             }
-            const lastIdx = JSON.parse(data).at(-1).idx;
-            n = lastIdx;
             this.logger.log(`response url ::: ${url}`);
             
             
@@ -371,63 +379,8 @@ export class AppService {
         } catch(error) {
             this.logger.log(error);
         }
-        return this.addPaykhanMusicWorkInfo(n);
+        return this.addPaykhanMusicWorkInfo();
     }
-
-    // async addPartnerUnlockInfo(partnerIdx: number,n: number = 0): Promise<any> {
-    //     const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
-
-    //     if(!OWNER_KEY){
-    //         this.logger.error('Cannot find OWNER_KEY');
-    //         throw new Error('Cannot find OWNER_KEY');
-    //     }
-    //     let url = "";
-    
-        
-    //     try {
-    //         if (partnerIdx == 1) {
-    //             url = "https://paykhan.org/nftAudio/getPaykhanUnlock?idx="+n;
-    //         } else if (partnerIdx == 2) {
-    //             url = "https://paykhan.org/nftAudio/getTuneUnlock?idx="+n;
-    //         } else if (partnerIdx == 3) {
-    //             url = "https://paykhan.org/nftAudio/getKaiaUnlock?idx="+n;
-    //         } 
-
-    //         const response = await fetch(url);
-    //         const data = await response.text();
-            
-    //         if(data === '[]') {
-    //             return {response: 'Nothing to update'};
-    //         } 
-
-    //         const jsonData = JSON.parse(data);
-
-    //         const duplicateCheck = new Date("2025-09-22 15:00:00");
-
-    //         this.logger.log(`response url ::: ${JSON.stringify(jsonData)}`);
-
-    //         const dataFilter = jsonData.filter(item => new Date(item.unlocked_at) < duplicateCheck)
-    //                                     .map(item => ({ ...item,icp_year_month: item.unlock_date}));;
-    //         this.logger.log(`response url ::: ${url}`);
-    //         this.logger.log(`response filter ::: ${JSON.stringify(dataFilter)}`);
-
-    //         const maxRetries = 3;
-    //         for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    //             try {
-    //                 await this.traffic2Actor.addVerificationUnlockListData(OWNER_KEY, JSON.stringify(dataFilter));
-    //                 break;
-    //             } catch (err) {
-    //                 console.error(`addVerificationUnlockListData (${attempt}/${maxRetries}):`, err);
-    //                 if (attempt < maxRetries) {
-    //                 }
-    //             }
-    //         }
-    //     } catch(error) {
-    //         this.logger.log(error);
-    //     }
-    
-    //     return this.addPartnerUnlockInfo(partnerIdx,n+50);
-    // }
 
     async getUnlockCount(body: any[]): Promise<any> {
 
@@ -474,6 +427,14 @@ export class AppService {
         }
 
         return this.cachedMusicInfo;
+    }
+
+    async getMusicWorkInfosTotalCount(): Promise<any> {
+        const musicInfo = await this.canisterService.oracleActor.getMusicWorkInfos();
+        this.logger.log(`total Music Count ::: ${musicInfo.length}`);
+
+
+        return musicInfo.length;
     }
 
 
@@ -574,7 +535,7 @@ export class AppService {
             const arr = await this.canisterService.memberSnapActor.getMonthlyRoyaltySnapsArr("20");
             
             const dayList = Array.from({ length: arr.length }, (_, i) => {
-                const d = new Date(today);
+                const d = new Date(now);
                 d.setDate(d.getDate() - (arr.length - i));
                 const day = d.toISOString().slice(0, 10).replace(/-/g, ""); // YYYYMMDD
                 return day;
@@ -625,7 +586,7 @@ export class AppService {
             const arr = await this.canisterService.memberSnapActor.getMonthlyMemberSnapsArr("20");
             
         const dayList = Array.from({ length: arr.length }, (_, i) => {
-            const d = new Date(today);
+            const d = new Date(now);
             d.setDate(d.getDate() - (arr.length - i));
             const day = d.toISOString().slice(0, 10).replace(/-/g, ""); // YYYYMMDD
             return day;
@@ -636,23 +597,24 @@ export class AppService {
         );
 
 
-        for (let i = 0; i < snaps.length; i++) {
+        for (let i = 0; i < 6; i++) {
             const snap = snaps[i][0];
             const date = `${snap.snap_date.slice(0, 4)}-${snap.snap_date.slice(4, 6)}-${snap.snap_date.slice(6, 8)}`;
             graph.push({ date, value: Number(snap.member_count) });
         }
         
-        const getRangeSum = (range: number) =>
-            graph.slice(-range).reduce((sum, item) => sum + item.value, 0);
+        // const getRangeSum = (range: number) =>
+        //     graph.slice(-range).reduce((sum, item) => sum + item.value, 0);
 
-        const week = getRangeSum(7);
-        const month = getRangeSum(30);
+        // const week = getRangeSum(7);
+        // const month = getRangeSum(30);
 
-        this.logger.log(`week ::: ${week} month ::: ${month}`);
+        // this.logger.log(`week ::: ${week} month ::: ${month}`);
 
         const sumGraph = graph.reduce<{ date: string; value: number }[]>((acc, item) => {
-            const prev = acc.length ? acc[acc.length - 1].value : 0;
-            acc.push({ date: item.date, value: prev + item.value });
+            const prev = acc.length ? acc[acc.length - 1].value: 0;
+            this.logger.log(`prev ::: ${prev} item.value ::: ${item.value}`);
+            acc.push({ date: item.date, value: item.value });
             return acc;
         }, []);
 
@@ -677,7 +639,7 @@ export class AppService {
             const arr = await this.canisterService.memberSnapActor.getMonthlyTransactionSnapsArr("20");
             
             const dayList = Array.from({ length: arr.length }, (_, i) => {
-                const d = new Date(today);
+                const d = new Date(now);
                 d.setDate(d.getDate() - (arr.length - i));
                 const day = d.toISOString().slice(0, 10).replace(/-/g, ""); // YYYYMMDD
                 return day;
@@ -738,8 +700,8 @@ export class AppService {
 
     async getTotalTransactionScan(): Promise<any> {
         const GetTransactionLength = ({
-                    start: 1, 
-                    length: 2
+                    start: 0, 
+                    length: 1
             });
 
         const now = Date.now();
@@ -759,8 +721,8 @@ export class AppService {
     
     async getTokenTransaction(type: string): Promise<any> {
         const GetTransactionLength = ({
-                    start: 1, 
-                    length: 2
+                    start: 0, 
+                    length: 1
             });
             
             
@@ -800,8 +762,8 @@ export class AppService {
 
     async getTokenTransactionScan(page: number): Promise<any> {
         const GetTransactionLength = ({
-            start: 1, 
-            length: 2
+            start: 0, 
+            length: 1
         });
         
         const now = Date.now();
@@ -855,6 +817,35 @@ export class AppService {
         return this.cachedScan;
     }
 
+    async getTokenTransactionDetail(idx: number): Promise<any> {
+        const GetTransactionLength = ({
+            start: 0, 
+            length: 1
+        });
+        
+        const length = await this.canisterService.tokenActor.get_transactions(GetTransactionLength);
+        const startArc = Number(length.first_index);
+        const type = 'scan';
+        idx = Number(idx-1);
+            
+        const GetTransactionReq = {
+            start: idx,
+            length: 1,
+        };
+        this.logger.log(`archive LastIdx ${startArc}`);
+        let transactionList: any;
+        if(idx > startArc) {
+            const transaction = await this.canisterService.tokenActor.get_transactions(GetTransactionReq);
+            transactionList = this.parseTransactions(transaction.transactions, type, idx);
+        } else {
+            const transactionArc = await this.canisterService.tokenArcActor.get_transactions(GetTransactionReq);
+            transactionList = this.parseTransactions(transactionArc.transactions, type, idx);
+        }
+        const result = { data: transactionList };
+
+        return result;
+    }
+
     async getRWAContributors(): Promise<string> {
         return await this.canisterService.memberActor.getMemberRowCnt();
     }
@@ -863,63 +854,100 @@ export class AppService {
         return await this.canisterService.memberActor.getPartners();
     }
 
-    async getPrincipalById(partnerIdx: number, id: string): Promise<any> {
-
-        let principal:any[] = [];
-        if(partnerIdx === 2) {
-            const secretKey = process.env.TELEGRAM_BOT_TOKEN!.split(":")[1].slice(0,32).padEnd(32,'0').substring(0,32);
-            id = this.telegramService.decrypt(id,secretKey);
-            this.logger.log(`decrypted id :: ${id}`);
-            principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
-            if(principal[0] === undefined){
-                await this.addPrincipal(id, partnerIdx);
-                principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
-            }
-            this.logger.log(principal[0].principle);
-            const ipl = await this.canisterService.tokenActor.icrc1_balance_of({ owner: Principal.fromText(principal[0].principle), subaccount: []});
-            this.logger.log(ipl);
+    // async getPrincipalById(partnerIdx: number, id: string): Promise<any> {
+    //     let principal:any[] = [];
+    //     if(partnerIdx === 2 || partnerIdx === 5) { 
+    //         const secretKey = process.env.TELEGRAM_BOT_TOKEN!.split(":")[1].slice(0,32).padEnd(32,'0').substring(0,32);
+    //         id = this.telegramService.decrypt(id);
+    //         principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
+    //         if(principal[0] === undefined){
+    //             if(partnerIdx === 5) {
+    //                 principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);    
+    //             } else { 
+    //                 partnerIdx = 5; //new telegram member
+    //                 await this.addPrincipal(id, partnerIdx);
+    //                 principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
+    //             }
+    //         }
+    //         this.logger.log(`principal ::: ${principal[0].principle}`);
+    //         const ipl = await this.canisterService.tokenActor.icrc1_balance_of({ owner: Principal.fromText(principal[0].principle), subaccount: []});
             
-            return {
-                partnerIdx: Number(principal[0].partner_idx),
-                principal: principal[0].principle,
-                balance: Number(ipl),
-                created_at: principal[0].created_at
-            };
-        } else {
-            const partnerIdxList = [1, 3, 4];
+    //         return {
+    //             partnerIdx: Number(principal[0].partner_idx),
+    //             principal: principal[0].principle,
+    //             balance: Number(ipl),
+    //             created_at: principal[0].created_at
+    //         };
+    //     } else {
+    //         const partnerIdxList = [1, 3, 6];
+            
+    //         id = await getAddress(id);
+    //         const lowerId = await id.toLowerCase();
+    //         principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
+    //         if(principal[0] === undefined){
+    //             principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, lowerId);
+    //             if(principal[0] === undefined) {
+    //                 partnerIdx = 6; //new evm member
+    //                 await this.addPrincipal(id, partnerIdx);
+    //             }
+    //         }
+            
+    //         const results = await Promise.all(
+    //             partnerIdxList.map(async (idx) => {
+    //                 let res1 = [];
+    //                 if(idx === 1){
+    //                     const resId = await axios.get(`https://paykhan.org/nftAudio/getPaykhanIdByAddress?address=${id}`);
+    //                     const pid = resId.data.replace(/[^a-zA-Z0-9._@-]/g, 'd');
+    //                     res1 = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(idx, pid);
+    //                 } else {
+    //                     res1 = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(idx, id);
+    //                 }
+                 
+    //                 const res2 = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(idx, lowerId);
 
-            const results = await Promise.all(
-                partnerIdxList.map(async (idx) => {
-                    if(idx === 1){
-                        const resId = await axios.get(`https://paykhan.org/nftAudio/getPaykhanIdByAddress?address=${id}`);
-                        id = resId.data.replace(/[^a-zA-Z0-9._@-]/g, 'd');
-                    } 
-                    const res = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(idx, id);
-                    if (res && res.length > 0) {
-                        const m = res[0];
-                        const ipl = await this.canisterService.tokenActor.icrc1_balance_of({ owner: Principal.fromText(m.principle), subaccount: []});
-                        this.logger.log(ipl);
-                    return {
-                        partnerIdx: Number(m.partner_idx),
-                        principal: m.principle, 
-                        balance: Number(ipl),  
-                        created_at: m.created_at,
-                    };
-                    }
-                    return null;
-                })
-            );
+    //                 this.logger.log(`id :: ${id} id lower :: ${lowerId}`);
 
-            // null filter
-            const memberList = results.filter(Boolean);
+    //                 // 두 결과 합치기
+    //                 const merged = [...(res1 || []), ...(res2 || [])];
 
-            return memberList;
-        }
+    //                 // 아무것도 없으면 null 반환
+    //                 if (merged.length === 0) return null;
 
-        
+    //                 const m = merged[0];
 
-        // return principal;
+                    
+    //                 const results2: any[] = [];
+                    
+    //                 for (const m of merged) {                  
+    //                     const ipl = await this.canisterService.tokenActor.icrc1_balance_of({ owner: Principal.fromText(m.principle), subaccount: []});
+                        
+    //                     results2.push({
+    //                         partnerIdx: Number(m.partner_idx),
+    //                         principal: m.principle,
+    //                         balance: Number(ipl),
+    //                         created_at: m.created_at,
+    //                     });
+    //                 }
+                
+    //                 return results2
+    //             })
+    //         );
+
+    //         // null filter
+    //         const memberList = results.filter(Boolean);
+    //         return memberList.flat();
+    //     }
+    // }    
+
+    async getIplBalance(principal: string): Promise<Number> {
+        const balance = await this.canisterService.tokenActor.icrc1_balance_of({
+                            owner: Principal.fromText(principal),
+                            subaccount: []
+                        });
+        this.logger.log(`principal ${principal} balance :: ${balance}`);
+        return Number(balance);
     }
+
 
     async getTotalUnlockCount(): Promise<number> {
         const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
@@ -1057,7 +1085,7 @@ export class AppService {
         const now = moment().utc();
         const tsSeconds = moment().unix();
 
-        // this.sendUnlockList(idxList, partnerIdx, OWNER_KEY);
+        this.sendUnlockList(idxList, partnerIdx, id, OWNER_KEY);
         
         const hanPrice = await this.getHanPrice();
         const exchangeUSD = await this.getExchangeUSD();
@@ -1132,7 +1160,6 @@ export class AppService {
             return res;            
     }
 
-
     async addVerificationUnlockListTK(partnerIdx: number, idxList: any, id: string = ''): Promise<any> {
         let res;
         const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
@@ -1148,20 +1175,13 @@ export class AppService {
         const tuneIdxArr = idxList.map(item => item.tune_idx);
         this.logger.log(tuneIdxArr);
 
-        this.sendUnlockList(tuneIdxArr, partnerIdx, OWNER_KEY);
+        this.sendUnlockList(tuneIdxArr, partnerIdx, id, OWNER_KEY);
         
         const hanPrice = await this.getHanPrice();
         const exchangeUSD = await this.getExchangeUSD();
-
-        this.logger.log(`hanPrice ::: ${hanPrice}`);
-        this.logger.log(`exchangeUSD ::: ${exchangeUSD}`);
-
         const hanKRW = this.roundTo(hanPrice * exchangeUSD,18);
-        
-        this.logger.log(`hanKRW ::: ${hanKRW}`);
         const miniRoyalty = 70/hanKRW;
 
-        this.logger.log(`miniRoyalty :: ${miniRoyalty}`);
 
         const list = await this.canisterService.oracleActor.getMusicContractAddress();
         
@@ -1170,7 +1190,7 @@ export class AppService {
         const addressList = tuneIdxArr.map(idx=>
             jsonList.find(item => item.idx === idx).contract || null);
         
-        this.logger.log("addressList", addressList);
+        this.logger.log(`addressList :: ${JSON.stringify(addressList)}`);
 
 
 
@@ -1234,6 +1254,63 @@ export class AppService {
 
 
         return sorted;
+    }
+
+
+    async addVerificationUnlockListOra(idxList: any, principal: string = ''): Promise<any> {
+        let res;
+        const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
+
+        if(!OWNER_KEY){
+            this.logger.error('Cannot find OWNER_KEY');
+            throw new Error('Cannot find OWNER_KEY');
+        }
+        
+        const now = moment().utc();
+
+        this.sendUnlockListForOra(idxList, principal, OWNER_KEY);
+
+        const songPrice = 0.08;
+
+        const list = await this.canisterService.oracleActor.getMusicContractAddress();
+        
+        const jsonList = JSON.parse(list);
+
+        const addressList = idxList.map(idx=>
+            jsonList.find(item => item.idx === idx).contract || null);
+        
+        this.logger.log(`addressList :: ${JSON.stringify(addressList)}`);
+
+
+
+        const stakerInfo = await this.canisterService.holderActor.getDailyRightsHoldersByYMD_List(addressList,  now.format('YYYY-MM-DD'));
+
+        
+        for(let i = 0; i < stakerInfo.length; i++) {
+            const ratio = this.roundTo((Number(stakerInfo[i].staked_amount)/2000)*100, 2);
+            const idxListFromContracts = jsonList.find(item => item.contract === stakerInfo[i].neighboring_token_address)?.idx || null;
+            Object.assign(stakerInfo[i], {"idx": `${Number(idxListFromContracts)}`});
+            Object.assign(stakerInfo[i], {"neighboring_holder_staked_address": `${stakerInfo[i].neighboring_holder_staked_address}`});
+            Object.assign(stakerInfo[i], {"ratio": `${ratio}%`});
+        }
+
+        const result = ( await Promise.all (
+            res = stakerInfo     
+                .map(item => {
+                    const amount = songPrice * (Number(item.ratio.replace('%','')/100))
+                    
+                    const weiAmount = ethers.parseEther(amount.toString());
+
+                    return {
+                        idx: Number(item.idx),
+                        owner_address: item.neighboring_holder_staked_address,
+                        amount: weiAmount,
+                    };
+                }) 
+        )).flat();
+    
+
+        return result;
     }
 
     async updateTotal(owner: string): Promise<number> {
@@ -1350,7 +1427,17 @@ export class AppService {
                 this.logger.log(`paykhan id ${id}`);
             }
 
-            const principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
+            let principal: any;
+            if(partnerIdx === 2 || partnerIdx === 3){
+                principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
+                if(principal[0] === undefined){
+                    if(partnerIdx === 2) {
+                        principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(5, id);
+                    } else if ( partnerIdx === 3) {
+                        principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(6, id);
+                    }
+                }
+            }
             
             this.logger.log(principal[0].principle);
             const encoder = new TextEncoder();
@@ -1401,7 +1488,6 @@ export class AppService {
             let resData: any;
             if(partnerIdx === 2) {
                 resData = await axios.get('https://beatapi.khans.io/tune/purchase');
-                this.logger.log(resData.data.data);
                 resData = resData.data.data;
                 if(resData.data === '[]') {
                     this.logger.log('Nothing to update');
@@ -1409,7 +1495,6 @@ export class AppService {
                 }
             } else if(partnerIdx === 3){
                 resData = await axios.get('https://beatkpi.khans.io/api/tune/purchase');
-                this.logger.log(resData.data.data);
                 resData = resData.data.data;
                 if(resData.data === '[]') {
                     this.logger.log('Nothing to update');
@@ -1428,7 +1513,7 @@ export class AppService {
                     
                 this.logger.log("addressList", addressList);
                 
-                const stakerInfo = await this.canisterService.holderActor.getDailyRightsHoldersByYMD_List(addressList,  now.format('YYYY-MM-DD'));
+                const stakerInfo = await this.canisterService.holderActor.getDailyRightsHoldersByYMD_List(addressList,  now.format('YYYYMMDD'));
         
                 
                 for(let i = 0; i < stakerInfo.length; i++) {
@@ -1445,31 +1530,30 @@ export class AppService {
                 
 
 
-                const result = ( await Promise.all (
-                    res = stakerInfo     
+                res = stakerInfo     
                         .map(item => {
-                            let amount = 0;
-                            let krw = 0;
+                        let amount = 0;
+                        let krw = 0;
 
-                            const subIdx = resData[idx].purchase_sub_idx;
-                            
-                            if(partnerIdx === 2 || partnerIdx === 3) {
-                                amount = this.roundTo(miniRoyalty * (Number(item.ratio.replace('%','')/100)), 18);
-                                krw = this.roundTo((miniRoyalty * hanKRW) * Number(item.ratio.replace('%','')/100), 2);
-                            }
-
-                            return {
-                                buyer_id: id,
-                                idx: Number(item.idx),
-                                purchase_sub_idx: subIdx,
-                                owner_address: item.neighboring_holder_staked_address,
-                                amount: amount.toString(),
-                                krw: krw.toString()
-                            };
-                        }) 
-                )).flat();
+                        const subIdx = resData[idx].purchase_sub_idx;
+                        
+                        if(partnerIdx === 2 || partnerIdx === 3) {
+                            amount = this.roundTo(miniRoyalty * (Number(item.ratio.replace('%','')/100)), 18);
+                            krw = this.roundTo((miniRoyalty * hanKRW) * Number(item.ratio.replace('%','')/100), 2);
+                        }
+                        console.log("subIdx :: ", subIdx);
+                        return {
+                            buyer_id: id,
+                            idx: Number(item.idx),
+                            purchase_sub_idx: subIdx,
+                            owner_address: item.neighboring_holder_staked_address,
+                            amount: amount.toString(),
+                            krw: krw.toString()
+                    };
+                }); 
         
-                this.logger.log(`result :: ${JSON.stringify(res)}`);
+                console.log("result :: ", JSON.stringify(res, null, 2));
+
 
                 if(partnerIdx === 2) {
                     const response =axios.post('https://beatapi.khans.io/tune/distribute-royalty', {
@@ -1525,7 +1609,7 @@ export class AppService {
                         
                         
                         principal= principalData[0].principle;
-                        this.logger.log(`principal idx ::: ${principal}`);
+                        this.logger.log(`principal ::: ${principal}`);
                         amount= Number(response.data[i].amount);
                     
                             try {
@@ -1715,27 +1799,41 @@ export class AppService {
             .map((k) => [Number(k), blobDict[k]])
             .sort((a, b) => a[0] - b[0])
             .map(([_, v]) => v);
-        const buf = Buffer.from(byteValues);
-
+        let buf = Buffer.from(byteValues);
+    
         // principal 
         if (buf.length >= 28 && buf.length <= 32) {
             const crc = Buffer.alloc(4);
             crc.writeUInt32BE(crc32(buf));
             const full = Buffer.concat([crc, buf]);
             const b32 = base32Encode(full);
-            return b32.match(/.{1,5}/g)?.join('-') ?? b32;
-        }
+           return b32.match(/.{1,5}/g)?.join('-') ?? b32;
+        } else if (buf.length === 10) {
+            buf = Buffer.from([
+            10, 167, 131, 161,  38, 156, 217,
+            171,   6,  51,  38, 253, 114, 227,
+            131, 105, 214,  49, 124,  41, 188,
+            208, 212, 127,  12, 205, 120,  12,
+                2
+            ]);
+
+            const crc = Buffer.alloc(4);
+            crc.writeUInt32BE(crc32(buf));
+            const full = Buffer.concat([crc, buf]);
+            const b32 = base32Encode(full);
+           return b32.match(/.{1,5}/g)?.join('-') ?? b32;
+        } 
 
         return buf.toString('utf8');
         };
 
         return transactions.map((tx) => {
-        const mint = tx.mint?.[0];
-        idx++;
-        // principal
-        let principal: string | null = null;
-        if (mint?.to?.owner?._arr) {
-            principal = decodeBlob(mint?.to?.owner?._arr); // blob → decode
+            const mint = tx.mint?.[0];
+            idx++;
+            // principal
+            let principal: string | null = null;
+            if (mint?.to?.owner?._arr) {
+                principal = decodeBlob(mint?.to?.owner?._arr); // blob → decode
         }
 
         // memo
@@ -1754,20 +1852,22 @@ export class AppService {
             } else {
                 createdAt = moment(tsMs).tz('UTC').format('MM/DD/YYYY HH:mm:ss');
             }
+        } else {
+            createdAt = moment().tz('UTC').format('MM/DD/YYYY HH:mm:ss');
         }
 
         return {
             index: idx,
             method: tx.kind ?? null,
             to: principal,
-            type: memo,
+            type: memo == null ? 'RoyaltyReward' : memo,
             timestamp: createdAt,
-            amount: mint?.amount ?? null,
+            amount: (mint?.amount ?? null) == 0 ? 1 : (mint?.amount ?? null),
         };
     });
   }
 
-  async sendUnlockList( idxList: number[], partnerIdx: number, ownerKey: string, maxRetries = 3, delayMs = 1000): Promise<void> {
+  async sendUnlockListForOra( idxList: number[], principal: string, ownerKey: string, maxRetries = 3, delayMs = 1000): Promise<void> {
     const now = moment().utc();
     const tsSeconds = moment().unix();
 
@@ -1785,10 +1885,13 @@ export class AppService {
             this.canisterService.oracleActor.incrementMusicWorkInfoUnlockCount(idx, ownerKey)
                 .catch((err) => console.error("incrementMusicWorkInfoUnlockCount:", err));
         }
+        
+        this.logger.log(`principal>>>>>>>>>> ${principal}`);
 
         const jsonArray = chunk.map((idx) => ({
-            partner_idx: partnerIdx,
+            partner_idx: 6,
             idx,
+            principal: principal,
             unlock_date: now.format('YYYY-MM-DD'),
             unlocked_at: now.format('YYYY-MM-DD HH:mm:ss'),
             unlocked_ts: tsSeconds,
@@ -1800,7 +1903,7 @@ export class AppService {
         // retry
         for (let attempt = 1; attempt <= maxRetries; attempt++) {
             try {
-                await this.canisterService.traffic2Actor.addVerificationUnlockListData(ownerKey, JSON.stringify(jsonArray));
+                await this.canisterService.traffic2Actor.addVerificationUnlockListDataV2(ownerKey, JSON.stringify(jsonArray));
                 break; // next chunk
             } catch (err) {
                 lastError = err;
@@ -1814,25 +1917,94 @@ export class AppService {
         if (lastError) {
             throw lastError;
         }
+        }
     }
+
+  async sendUnlockList( idxList: number[], partnerIdx: number, id: string, ownerKey: string, maxRetries = 3, delayMs = 1000): Promise<void> {
+    const now = moment().utc();
+    const tsSeconds = moment().unix();
+
+    let principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
+    if(principal[0] === undefined){
+        if(partnerIdx === 2) partnerIdx = 5; //new ton member
+        else if (partnerIdx === 3) partnerIdx = 6;
+        
+        principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
+    }
+    
+    
+
+    // 50
+    for (let i = 0; i < idxList.length; i += 50) {
+        const chunk = idxList.slice(i, i + 50);
+
+        for (const idx of chunk) {
+            // this.oracleActor.incrementVerificationUnlockCount(partnerIdx, idx, ownerKey)
+            //         .catch((err) => console.error("incrementVerificationUnlockCount:", err));
+
+            // this.oracleActor.incrementUnlockedAccumulated(1, ownerKey)
+            //     .catch((err) => console.error("incrementUnlockedAccumulated:", err));
+
+            this.canisterService.oracleActor.incrementMusicWorkInfoUnlockCount(idx, ownerKey)
+                .catch((err) => console.error("incrementMusicWorkInfoUnlockCount:", err));
+        }
+        
+        this.logger.log("principal>>>>>>>>>>", principal[0].principle);
+
+        const jsonArray = chunk.map((idx) => ({
+            partner_idx: partnerIdx,
+            idx,
+            principal: principal[0].principle,
+            unlock_date: now.format('YYYY-MM-DD'),
+            unlocked_at: now.format('YYYY-MM-DD HH:mm:ss'),
+            unlocked_ts: tsSeconds,
+            icp_year_month: now.format('YYYY-MM-DD'),
+        }));
+
+        let lastError: any;
+
+        // retry
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            try {
+                await this.canisterService.traffic2Actor.addVerificationUnlockListDataV2(ownerKey, JSON.stringify(jsonArray));
+                break; // next chunk
+            } catch (err) {
+                lastError = err;
+                console.error(`addVerificationUnlockListData ( ${attempt}/${maxRetries}):`, err);
+                if (attempt < maxRetries) {
+                    await new Promise((res) => setTimeout(res, delayMs));
+                }
+            }
+        }
+
+        if (lastError) {
+            throw lastError;
+        }
+        }
     }
 
 
-    async getMigration(startIdx: number, cnt: number): Promise<any> {
+    async getMigration(startIdx: number, endIdx: number = 9999999, cnt: number, retryCnt = 0): Promise<any> {
         let allTx: any[] = [];
+
+        if(startIdx > endIdx) {
+            this.logger.log(`Migration Completed ::: startIdx: ${startIdx}, endIdx: ${endIdx}`);
+            return { response: 'Migration Completed' };
+        }
+
         const GetTransactionLength = ({
                     start: startIdx-1, 
                     length: cnt
             });
-
+        try {
             const transaction = await this.canisterService.tokenArcActor.get_transactions(GetTransactionLength);
             let mainList = this.parseTransactions(transaction.transactions, "scan", GetTransactionLength.start);
             allTx = [...mainList];
-            this.logger.log(`totalTransaction: ${allTx.length}`);
-            if(allTx.length < cnt && allTx.length > 0) {
+            this.logger.log(`startIdx ::: ${startIdx} totalTransaction ::: ${allTx.length}`);
+            if(allTx.length <= cnt && allTx.length > 0) {
                 this.logger.log(`Archive LastIndex: ${allTx[allTx.length-1].index}`);
                 const GetTransactionLengthLive = ({
-                    start: allTx[allTx.length-1].index, 
+                    start: allTx[allTx.length-1].index,                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
                     length: cnt - allTx.length
                 });
 
@@ -1840,6 +2012,7 @@ export class AppService {
 
                 const archiveList = this.parseTransactions(transactionLive.transactions, "scan", Number(GetTransactionLengthLive.start));
                 allTx = [...allTx, ...archiveList];
+                
             } else {
                 this.logger.log(`Archive End Live Data`);
                 const transactionLive = await this.canisterService.tokenActor.get_transactions(GetTransactionLength);
@@ -1847,8 +2020,232 @@ export class AppService {
                 const archiveList = this.parseTransactions(transactionLive.transactions, "scan", Number(GetTransactionLength.start));
                 allTx = [...allTx, ...archiveList];
             }
-            
+        } catch (error) {
+            this.logger.error(`Error: ${error}`);
+            return this.getMigration(startIdx, endIdx, cnt);
+        }
 
-        return allTx;
+            const stringifiedTx = allTx.map(tx => ({
+            ...tx,
+            amount: String(tx.amount),
+            }));
+
+            this.logger.log(util.inspect(stringifiedTx, { depth: null, colors: true }));
+
+            this.logger.log(`stringifiedTx.length ::: ${stringifiedTx.length}`);
+
+            
+            try {
+                if(stringifiedTx.length === 0) {
+                    this.logger.log(`No Transactions Found, Moving to Next Batch ::: startIdx: ${startIdx + cnt}`);
+                    return this.getMigration(startIdx + stringifiedTx.length, endIdx, cnt);
+                }
+                const whitelistRes =await axios.post('http://10.30.110.219/api/v1/contracts/whitelist', {
+                    requests: stringifiedTx                
+                })
+                this.logger.log(`whitelistRes: ${JSON.stringify(whitelistRes?.data)}`);
+                if(whitelistRes?.data?.success === true) {
+                    return this.getMigration(startIdx+stringifiedTx.length, endIdx, cnt);
+                } else {
+                    if (retryCnt < 1) {
+                        return this.getMigration(startIdx, endIdx, cnt, retryCnt + 1);
+                    } else {
+                        return this.getMigration(startIdx+stringifiedTx.length, endIdx, cnt);
+                    }
+                }
+            } catch (error) {
+                this.logger.error(`whitelistRes Error: ${error}`);
+                await new Promise(resolve => setTimeout(resolve, 5000));
+
+                if (retryCnt < 1) {
+                    return this.getMigration(startIdx, endIdx, cnt, retryCnt + 1);
+                } else {
+                    return this.getMigration(startIdx+stringifiedTx.length, endIdx, cnt);
+                }
+            } 
+
+    }
+
+    async getMigrationSub(startIdx: number, cnt: number = 50): Promise<any> {
+        let allTx: any[] = [];
+
+        startIdx = startIdx +1;
+
+        const last2 = startIdx % 100;
+        let target = 0;
+        if (last2 < 50) {
+            target = startIdx - last2 + 50;       // 10~49 → 50
+        } else if (last2 < 100) {
+            target = startIdx - last2 + 100;      // 50~99 → 100
+        }
+
+        cnt = target - startIdx + 1;
+
+        this.logger.log(`cnt ::: ${cnt}`);
+
+        try {
+            const GetTransactionLength = ({
+                        start: startIdx-1, 
+                        length: cnt
+                });
+            const transaction = await this.canisterService.tokenArcActor.get_transactions(GetTransactionLength);
+            let mainList = this.parseTransactions(transaction.transactions, "scan", GetTransactionLength.start);
+            allTx = [...mainList];
+            this.logger.log(`startIdx ::: ${startIdx} totalTransaction ::: ${allTx.length}`);
+            if(allTx.length <= cnt && allTx.length > 0) {
+                this.logger.log(`Archive LastIndex: ${allTx[allTx.length-1].index}`);
+                const GetTransactionLengthLive = ({
+                    start: allTx[allTx.length-1].index,                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
+                    length: cnt - allTx.length
+                });
+
+                const transactionLive = await this.canisterService.tokenActor.get_transactions(GetTransactionLengthLive);
+
+                const archiveList = this.parseTransactions(transactionLive.transactions, "scan", Number(GetTransactionLengthLive.start));
+                allTx = [...allTx, ...archiveList];
+                
+            } else {
+                this.logger.log(`Archive End Live Data`);
+                const transactionLive = await this.canisterService.tokenActor.get_transactions(GetTransactionLength);
+
+                const archiveList = this.parseTransactions(transactionLive.transactions, "scan", Number(GetTransactionLength.start));
+                allTx = [...allTx, ...archiveList];
+            }
+        } catch (error) {
+            this.logger.error(`Error: ${error}`);
+            return { response: 'Migration Failed' };
+        }
+
+            const stringifiedTx = allTx.map(tx => ({
+            ...tx,
+            amount: String(tx.amount),
+            }));
+
+            this.logger.log(util.inspect(stringifiedTx, { depth: null, colors: true }));
+
+            this.logger.log(`stringifiedTx.length ::: ${stringifiedTx.length}`);
+
+            
+        
+            const whitelistRes =await axios.post('http://10.30.110.219/api/v1/contracts/whitelist', {
+                requests: stringifiedTx                
+            })
+            this.logger.log(`whitelistRes: ${JSON.stringify(whitelistRes?.data)}`);
+            if(whitelistRes?.data?.success === true) {
+                return { response: 'Migration Completed' };
+            } else {
+                return { response: 'Migration Failed' };
+            }
+    }
+
+
+    async getArcIdx(startIdx: number, endIdx: number = 9999999, cnt: number): Promise<any> {
+        let allTx: any[] = [];
+
+        if(startIdx > endIdx) {
+            this.logger.log(`Migration Completed ::: startIdx: ${startIdx}, endIdx: ${endIdx}`);
+            return { response: 'Migration Completed' };
+        }
+
+        const GetTransactionLength = ({
+                    start: startIdx-1, 
+                    length: cnt
+            });
+        try {
+            const transaction = await this.canisterService.tokenArcActor.get_transactions(GetTransactionLength);
+            let mainList = this.parseTransactions(transaction.transactions, "scan", GetTransactionLength.start);
+            allTx = [...mainList];
+            // this.logger.log(`startIdx ::: ${startIdx} totalTransaction ::: ${allTx.length}`);
+            if(allTx.length <= cnt && allTx.length > 0) {
+                this.logger.log(`Archive LastIndex: ${allTx[allTx.length-1].index}`);
+                const GetTransactionLengthLive = ({
+                    start: allTx[allTx.length-1].index,                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
+                    length: cnt - allTx.length
+                });
+
+                const transactionLive = await this.canisterService.tokenActor.get_transactions(GetTransactionLengthLive);
+                console.log(transactionLive.transactions);
+                const archiveList = this.parseTransactions(transactionLive.transactions, "scan", Number(GetTransactionLengthLive.start));
+                allTx = [...allTx, ...archiveList];
+                
+            } else {
+                this.logger.log(`Archive End Live Data`);
+                const transactionLive = await this.canisterService.tokenActor.get_transactions(GetTransactionLength);
+                console.log(transactionLive.transactions);
+                const archiveList = this.parseTransactions(transactionLive.transactions, "scan", Number(GetTransactionLength.start));
+                allTx = [...allTx, ...archiveList];
+            }
+        } catch (error) {
+            this.logger.error(`Error: ${error}`);
+            return this.getMigration(startIdx, endIdx, cnt);
+        }
+
+            const stringifiedTx = allTx.map(tx => ({
+            ...tx,
+            amount: String(tx.amount),
+            }));
+
+            // this.logger.log(util.inspect(stringifiedTx, { depth: null, colors: true }));
+        return { response: stringifiedTx };
+    }
+
+    async addMonthlyIPLSnap(date: string = "20251001"): Promise<any> {
+        const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
+
+        if(!OWNER_KEY){
+            this.logger.error('Cannot find OWNER_KEY');
+            throw new Error('Cannot find OWNER_KEY');
+        }
+
+        let allTx: any[] = [];
+        let snapMap = new Map();
+
+        const startIdx = await this.canisterService.memberSnapActor.getSnapLastIndex();
+        this.logger.log(`getSnapLastIndex ::: ${startIdx}`);
+        const GetTransactionLength = ({
+                    start: startIdx, 
+                    length: 2000
+            });
+
+            const transaction = await this.canisterService.tokenArcActor.get_transactions(GetTransactionLength);
+            let mainList = this.parseTransactions(transaction.transactions, "scan", GetTransactionLength.start);
+            allTx = [...mainList];
+            const numberifiedTx = allTx.map(tx => ({
+            ...tx,
+            amount: Number(tx.amount),
+            }));
+            if(numberifiedTx.length > 0) {
+                const cutoffDate = moment(`${date} 00:00:00`, "YYYYMMDD HH:mm:ss");
+                
+                const cutoffIndex = numberifiedTx.findIndex(tx =>
+                    moment(tx.timestamp, "MM/DD/YYYY HH:mm:ss").isBefore(cutoffDate)
+                );
+                const txDate = moment(numberifiedTx[numberifiedTx.length-1].timestamp, "MM/DD/YYYY HH:mm:ss");
+                this.logger.log(`Archive totalIndex ${numberifiedTx.length-1} LastIndex: ${cutoffIndex}`);
+                if(txDate < cutoffDate) {
+                    this.logger.log(`Archive timestamp ::: ${txDate} < ${cutoffDate}`);
+                    numberifiedTx.forEach(tx => {
+                        const prev = snapMap.get(tx.to) || 0;
+                        snapMap.set(tx.to, prev + tx.amount);
+                    });
+                    
+                    this.logger.log(`length ::: ${snapMap.size}`);
+
+                    await Promise.all(
+                        Array.from(snapMap.entries()).map(([principal, amount]) =>
+                            this.canisterService.memberSnapActor.addMonthlyIPLSnap(OWNER_KEY, date, principal, amount)
+                        // .then(() => this.logger.log(`Adding snap ${principal} amount ${amount}`))
+                        )
+                );
+                await this.canisterService.memberSnapActor.setSnapLastIndex(OWNER_KEY, numberifiedTx[numberifiedTx.length-1].index);
+                    this.logger.log('✅ All snapMap entries sent!');
+                    return this.addMonthlyIPLSnap(date);
+                    // return { response: 'Monthly IPL Snap Date Processed' };
+                } else {
+                    this.logger.log(`Archive timestamp ::: ${txDate} > ${cutoffDate}`);
+                    return { response: 'Monthly IPL Snap Date Close' };
+                }
+            }
+
     }
 }

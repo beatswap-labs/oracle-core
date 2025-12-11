@@ -1,15 +1,17 @@
 import { Controller, Get, Post, Body, Req, Logger, ValidationPipe } from '@nestjs/common';
 import { AppService } from './app.service';
-import { MintService } from './service/mint.service';
+import { WorkerService } from './service/worker.service';
 import { oracleDto } from './dto/oracleDto';
 import { Request } from 'express';
 import * as moment from 'moment-timezone';
 
 @Controller('oracle')
 export class AppController {
-    constructor(private readonly appService: AppService, private readonly mintService: MintService) {}
+    constructor(private readonly appService: AppService, private readonly workerService: WorkerService) {}
 
     private readonly logger = new Logger(AppController.name);
+    private recentRequests = new Map<string, number>(); // principal -> timestamp
+    private REQUEST_INTERVAL = 43200000; // 12시간
 
     @Get('test')
     async test() {
@@ -23,6 +25,13 @@ export class AppController {
         this.logger.log(`getMusicWorkInfos Call ip :: ${req.socket.remoteAddress}`);
 
         return this.appService.getMusicWorkInfosByOwner();
+    }
+
+    //Music total count
+    @Post('getMusicWorkInfosTotalCount')
+    async getMusicWorkInfosTotalCount() {
+        this.logger.log('getMusicWorkInfosTotalCount Call');
+        return this.appService.getMusicWorkInfosTotalCount();
     }
 
 
@@ -162,6 +171,22 @@ export class AppController {
 
     }
 
+    @Post('addVerificationUnlockListOra')
+    async addVerificationUnlockListOra(@Req() req: Request, @Body() body: oracleDto) {
+        const clientIp = req.ip?.replace('::ffff:', '');
+        this.logger.log(`addVerificationUnlockListOra Call idx :: ${JSON.stringify(body.idxList)} id :: ${body.principal} request IP :: ${clientIp}`);
+            
+        try {
+            const data = await this.appService.addVerificationUnlockListOra(body.idxList, body.principal);
+
+             return { success: true , data};
+        } catch(e) {
+            this.logger.error("error",e);
+            return { success: false };
+        }
+
+    }
+
 
     @Post('addUserPlayData')
     async addUserPlayData(@Body() body: oracleDto) {
@@ -179,9 +204,9 @@ export class AppController {
     }
 
     @Post('addRightsHolder')
-    async addRightsHolder() {
+    async addRightsHolder(@Body() body: oracleDto) {
         try {
-            const response = await this.appService.addRightsHolder();
+            const response = await this.appService.addRightsHolder(body.idx);
             this.logger.log(response);
         }   catch(e) {
             this.logger.error("error",e);
@@ -199,7 +224,7 @@ export class AppController {
 
     @Post('addPaykhanMusicWorkInfo')
     async addPaykhanMusicWorkInfo(@Body() body: oracleDto) {
-        const response = await this.appService.addPaykhanMusicWorkInfo(body.idx);
+        const response = await this.appService.addPaykhanMusicWorkInfo();
         return response;
     }
 
@@ -253,8 +278,44 @@ export class AppController {
     @Post('addMint')
     async addMint(@Body() body: oracleDto) {
         this.logger.log(`addMint Call :: Type :: ${body.mintType} ID :: ${body.id} partnerIdx :: ${body.partnerIdx} amount :: ${body.amount}`);
+
+        if(body.amount <= 0 || body.amount > 3000) {
+            this.logger.log(`rejected principal ::: ${body.principal}`);
+            return { success: false, message: 'reject request param' };
+        }
+
         try {
-            const response = await this.mintService.mintToken(body.id, body.partnerIdx, body.mintType, body.amount);
+            const response = await this.workerService.mintToken(body.id, body.partnerIdx, body.mintType, body.amount);
+            return { success: true , response};
+        } catch(e) {
+            this.logger.error("error",e);
+            return { success: false };
+        }
+    }
+
+    @Post('addOracleMint')
+    async addOracleMint(@Body() body: oracleDto) {
+        this.logger.log(`addOracleMint Call :: Type :: ${body.mintType} ID :: ${body.principal}  amount :: ${body.amount}`);
+        const now = Date.now();
+        const lastTime = this.recentRequests.get(body.principal) || 0;
+
+        if (now - lastTime < this.REQUEST_INTERVAL) {
+        // duplicate rquest
+            this.logger.log(`Duplicate mint request blocked for principal: ${body.principal}`);
+            return { success: false, message: 'Too many requests' };
+        }
+
+        if(body.amount <= 0 || body.amount > 3000) {
+            this.logger.log(`rejected principal ::: ${body.principal}`);
+            return { success: false, message: 'reject request param' };
+        }
+        this.recentRequests.set(body.principal, now);
+
+        // memory cleanup
+        setTimeout(() => this.recentRequests.delete(body.principal), this.REQUEST_INTERVAL);
+
+        try {
+            const response = await this.workerService.mintTokenForOracle(body.principal, body.mintType, body.amount);
             return { success: true , response};
         } catch(e) {
             this.logger.error("error",e);
@@ -263,11 +324,18 @@ export class AppController {
     }
 
 
-    //addIplMintbatch batch
+    //addIplMintbatch batch:Q
     @Post('addIplMintbatch')
     async addIplMintbatch(@Body() body: oracleDto) {
         this.logger.log(`addIplMintbatch Call ::  ${body.partnerIdx} || ${body.idx}`);
         const response = await this.appService.addIplMintbatch(body.partnerIdx, body.idx);
         return response;
+    }
+
+        //ipl balance
+    @Post('getIplBalance')
+    async getIplBalance(@Body() body: oracleDto) {
+        this.logger.log(`getIplBalance Call ::: ${body.principal}`);
+        return this.appService.getIplBalance(body.principal);
     }
 }

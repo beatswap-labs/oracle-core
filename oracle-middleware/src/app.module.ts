@@ -6,7 +6,7 @@ import { ConfigModule } from '@nestjs/config';
 import { AppService } from './app.service';
 import { BatchService } from './batch/batch.service';
 import { TelegramService } from './telegram/telegram.service';
-import { MintService } from './service/mint.service';
+import { WorkerService } from './service/worker.service';
 import { CanisterService } from './service/canister.service';
 
 @Module({
@@ -17,6 +17,6 @@ import { CanisterService } from './service/canister.service';
     }),
   ],
   controllers: [AppController, BeatSwapController],
-  providers: [BatchService, AppService, TelegramService, CanisterService, MintService],
+  providers: [BatchService, AppService, TelegramService, CanisterService, WorkerService],
 })
 export class AppModule {}

@@ -33,4 +33,5 @@ export class oracleDto {
     startTs: number;
     endTs: number;
     mintType: string;
+    principal: string;
 }
