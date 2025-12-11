@@ -1,6 +1,6 @@
 // Version: 1.0.0
-type List<T> = ?(T, List<T>);
-type Member =
+type List__918950244<T> = ?(T, List__918950244<T>);
+type Member__893097197 =
   {
     created_at : Text;
     idx : Nat;
@@ -9,7 +9,8 @@ type Member =
     user : Text
   };
 actor {
-  stable var MemberData : ?(Member, List<Member>);
+  stable var MemberData :
+    ?(Member__893097197, List__918950244<Member__893097197>);
   stable var MemberIdxCounter : Nat;
   stable var canister_owner : ?Text
 };

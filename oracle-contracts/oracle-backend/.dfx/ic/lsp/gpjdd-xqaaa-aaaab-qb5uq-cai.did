@@ -1,3 +1,20 @@
+type VerificationUnlockUserData = 
+ record {
+   idx: nat;
+   partner_idx: nat;
+   "principal": text;
+   unlock_date: text;
+ };
+type VerificationUnlockListV2 = 
+ record {
+   icp_year_month: text;
+   idx: nat;
+   partner_idx: nat;
+   "principal": text;
+   unlock_date: text;
+   unlocked_at: text;
+   unlocked_ts: nat64;
+ };
 type VerificationUnlockList = 
  record {
    icp_year_month: text;
@@ -9,13 +26,23 @@ type VerificationUnlockList =
  };
 service : {
   addVerificationUnlockListData: (owner: text, unlock_data: text) -> (text);
+  addVerificationUnlockListDataV2: (owner: text, unlock_data: text) -> (text);
+  getCountByUser: ("principal": text) -> (nat) query;
+  getEventsByUser: ("principal": text) ->
+   (vec VerificationUnlockUserData) query;
   getKCountByYm: (ym: text) -> (nat) query;
+  getKCountV2ByYm: (ym: text) -> (nat) query;
   getKEventsByYm: (ym: text) -> (vec VerificationUnlockList) query;
+  getKEventsV2ByYm: (ym: text) -> (vec VerificationUnlockListV2) query;
   getOracleDataRowCnt2: () -> (nat) query;
   getPCountByYm: (ym: text) -> (nat) query;
+  getPCountV2ByYm: (ym: text) -> (nat) query;
   getPEventsByYm: (ym: text) -> (vec VerificationUnlockList) query;
+  getPEventsV2ByYm: (ym: text) -> (vec VerificationUnlockListV2) query;
   getTCountByYm: (ym: text) -> (nat) query;
+  getTCountV2ByYm: (ym: text) -> (nat) query;
   getTEventsByYm: (ym: text) -> (vec VerificationUnlockList) query;
+  getTEventsV2ByYm: (ym: text) -> (vec VerificationUnlockListV2) query;
   setCanisterOwner: (newOwner: text) -> (text);
   updateCanisterOwner: (base: opt text, newbase: opt text) -> (text);
 }

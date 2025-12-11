@@ -81,6 +81,22 @@ public query func getDailyRightsHolderCountByYMD(ymd : Text) : async Nat {
   }
 };
 
+public func removeDailyRightsHoldersByYMD(owner : Text, ymd : Text) : async Text {
+  if (canister_owner != ?owner) {
+    return "Not authorized: Canister owner does not match!";
+  };
+
+  switch (DailyRightsHoldersByYmd.get(ymd)) {
+    case (?b) {
+      ignore DailyRightsHoldersByYmd.remove(ymd);
+      return "DailyRightsHolders data removed for " # ymd;
+    };
+    case null {
+      return "No data found for " # ymd;
+    };
+  };
+};
+
 // filter
 public query func getDailyRightsHoldersByYMD(neighboring_token_address: Text, ymd : Text) : async [T.DailyRightsHolders] {
   switch (DailyRightsHoldersByYmd.get(ymd)) {
@@ -170,6 +186,7 @@ public func addDailyRightsHoldersData(owner : Text , data : Text) : async Text {
     case (#err(_)) { "JSON parse error" }
   }
 };
+
 
 
 }

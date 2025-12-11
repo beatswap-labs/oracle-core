@@ -96,6 +96,23 @@ module {
         unlocked_ts : Nat64;
     };
 
+    public type VerificationUnlockListV2={
+        icp_year_month : Text;  //YYYYMM
+        partner_idx : Nat;
+        idx : Nat;
+        principal: Text;  
+        unlock_date : Text;
+        unlocked_at : Text;
+        unlocked_ts : Nat64;
+    };
+
+    public type VerificationUnlockUserData={
+        partner_idx : Nat;
+        idx : Nat;
+        principal: Text;
+        unlock_date : Text;
+    };
+
     public type VerificationRightsPosAddressList ={
         right_pos_address_idx : Nat;
         is_neighboring_pos_address : Bool;
@@ -174,5 +191,20 @@ module {
         snap_date : Text; //YYYY-MM-DD
         total_royalty : Nat;
     };
+
+    public type MonthlyIPLSnap={
+        snap_date : Text; //YYYY-MM-DD
+        snap_principal: Text;
+        snap_idx : Nat;
+    };
+
+
+    public type MonthlyIPLSnapV2={
+        snap_date : Text; //YYYY-MM-DD
+        snap_principal: Text;
+        snap_idx : Nat;
+        last_idx : Nat;
+    };
+
 
 }

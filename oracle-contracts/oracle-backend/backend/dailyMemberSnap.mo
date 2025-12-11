@@ -44,8 +44,31 @@ persistent actor DailyMemberSnap{
 
     //Royalty Snapshot Data
     var DailyRoyaltySnapData : List.List<T.DailyRoyaltySnap> = List.nil();
-    
-    public func addDailyMemberSnap(owner : Text,snap_date : Text,member_count : Nat) : async Bool {
+
+    //IPL Snapshot
+    var MonthlyIPLSnapData : List.List<T.MonthlyIPLSnap> = List.nil();
+
+    //IPL Snapshot
+    var MonthlyIPLSnapDataV2 : List.List<T.MonthlyIPLSnapV2> = List.nil();
+
+    var snap_lastindex : Nat = 0;
+
+    public func setSnapLastIndex(owner: Text, newIndex : Nat) : async Bool {
+        let authorized = canister_owner == ?owner;
+        //check owner
+        if (not authorized) {
+            Debug.print("Only owner can set snap last index");
+            return false;
+        };
+        snap_lastindex := newIndex;
+        true
+    };
+
+    public query func getSnapLastIndex() : async Nat {
+        snap_lastindex
+    };
+
+    public func addDailyMemberSnap(owner : Text, snap_date : Text, member_count : Nat) : async Bool {
         let authorized = canister_owner == ?owner;
         //check owner
         if (not authorized) {
@@ -59,12 +82,24 @@ persistent actor DailyMemberSnap{
             dms.snap_date == snap_date
         });
         if (existing != null) {
-            false
-        } else {
-            
-            DailyMemberSnapData := List.push({ snap_date; member_count }, DailyMemberSnapData);
+            DailyMemberSnapData := List.map<T.DailyMemberSnap, T.DailyMemberSnap>(
+                DailyMemberSnapData,
+                func(dms: T.DailyMemberSnap): T.DailyMemberSnap {
+                    if (dms.snap_date == snap_date) {
+                        { snap_date = dms.snap_date; member_count = member_count };
+                    } else {
+                        dms
+                    }
+                }
+            );
+            Debug.print("Updated existing daily member snap");
             true
-        }
+        } else {
+            // 없으면 새로 추가
+            DailyMemberSnapData := List.push({ snap_date; member_count }, DailyMemberSnapData);
+            Debug.print("Added new daily member snap");
+            true
+        };
     };
 
     //daily transaction snapshot
@@ -80,12 +115,24 @@ persistent actor DailyMemberSnap{
         });
         //check owner
         if (existing != null) {
-            false
-        } else {
-            
-            DailyTransactionSnapData := List.push({ snap_date; transaction_count }, DailyTransactionSnapData);
+            DailyTransactionSnapData := List.map<T.DailyTransactionSnap, T.DailyTransactionSnap>(
+                DailyTransactionSnapData,
+                func(dms: T.DailyTransactionSnap): T.DailyTransactionSnap {
+                    if (dms.snap_date == snap_date) {
+                        { snap_date = dms.snap_date; transaction_count = transaction_count };
+                    } else {
+                        dms
+                    }
+                }
+            );
+            Debug.print("Updated existing daily transaction snap");
             true
-        }
+        } else {
+            // 없으면 새로 추가
+            DailyTransactionSnapData := List.push({ snap_date; transaction_count }, DailyTransactionSnapData);
+            Debug.print("Added new daily transaction snap");
+            true
+        };
     };
 
     //daily royalty snapshot
@@ -101,12 +148,58 @@ persistent actor DailyMemberSnap{
             dms.snap_date == snap_date
         });
         if (existing != null) {
-            false
-        } else {
-            
-            DailyRoyaltySnapData := List.push({ snap_date; total_royalty }, DailyRoyaltySnapData);
+            DailyRoyaltySnapData := List.map<T.DailyRoyaltySnap, T.DailyRoyaltySnap>(
+                DailyRoyaltySnapData,
+                func(dms: T.DailyRoyaltySnap): T.DailyRoyaltySnap {
+                    if (dms.snap_date == snap_date) {
+                        { snap_date = dms.snap_date; total_royalty = total_royalty };
+                    } else {
+                        dms
+                    }
+                }
+            );
+            Debug.print("Updated existing daily royalty snap");
             true
-        }
+        } else {
+            // 없으면 새로 추가
+            DailyRoyaltySnapData := List.push({ snap_date; total_royalty }, DailyRoyaltySnapData);
+            Debug.print("Added new daily royalty snap");
+            true
+        };
+    };
+    
+    //monthly IPL snapshot
+    public func addMonthlyIPLSnap(owner : Text, snap_date : Text, snap_principal: Text, snap_idx: Nat) : async Bool {
+        let authorized = canister_owner == ?owner;
+        //check owner
+        if (not authorized) {
+            Debug.print("Only owner can add monthly IPL snap data");
+            return false;
+        };
+        //check month
+        let existing = List.find<T.MonthlyIPLSnap>(MonthlyIPLSnapData, func (mipl : T.MonthlyIPLSnap) : Bool {
+            mipl.snap_date == snap_date and mipl.snap_principal == snap_principal
+        });
+        if (existing != null) {
+            MonthlyIPLSnapData := List.map<T.MonthlyIPLSnap, T.MonthlyIPLSnap>(
+                MonthlyIPLSnapData,
+                func(mipl: T.MonthlyIPLSnap): T.MonthlyIPLSnap {
+                    if (mipl.snap_date == snap_date and mipl.snap_principal == snap_principal) {
+                        { snap_date = mipl.snap_date; snap_principal = mipl.snap_principal; snap_idx = snap_idx; };
+                    } else {
+                        mipl
+                    }
+                }
+
+            );
+            Debug.print("Updated existing daily royalty snap");
+            true
+        } else {
+            // 없으면 새로 추가
+            MonthlyIPLSnapData := List.push({ snap_date; snap_principal; snap_idx;}, MonthlyIPLSnapData);
+            Debug.print("Added new daily royalty snap");
+            true
+        };
     };
 
     
@@ -166,6 +259,26 @@ persistent actor DailyMemberSnap{
         DailyRoyaltySnapData,
         func (dms : T.DailyRoyaltySnap) : Bool {
           startsWith(dms.snap_date, month)
+        }
+      );
+      List.toArray(filtered)
+    };
+
+    public query func getMonthlyIPLSnapsArr(snap_principal : Text) : async [T.MonthlyIPLSnap] {
+      let filtered = List.filter<T.MonthlyIPLSnap>(
+        MonthlyIPLSnapData,
+        func (mipl : T.MonthlyIPLSnap) : Bool {
+          mipl.snap_principal == snap_principal
+        }
+      );
+      List.toArray(filtered)
+    };
+
+    public query func getMonthlyIPLSnapsArrV2(snap_principal : Text) : async [T.MonthlyIPLSnapV2] {
+      let filtered = List.filter<T.MonthlyIPLSnapV2>(
+        MonthlyIPLSnapDataV2,
+        func (mipl : T.MonthlyIPLSnapV2) : Bool {
+          mipl.snap_principal == snap_principal
         }
       );
       List.toArray(filtered)

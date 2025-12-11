@@ -28,12 +28,18 @@ export const idlFactory = ({ IDL }) => {
     'getMemberByPrinciple' : IDL.Func([IDL.Text], [IDL.Opt(Member)], ['query']),
     'getMemberCountByPartnerIdx' : IDL.Func([IDL.Nat], [IDL.Nat], ['query']),
     'getMemberRowCnt' : IDL.Func([], [IDL.Nat], ['query']),
+    'getMembersByPrincipleList' : IDL.Func(
+        [IDL.Text],
+        [IDL.Vec(Member)],
+        ['query'],
+      ),
     'setCanisterOwner' : IDL.Func([IDL.Text], [IDL.Text], []),
     'updateCanisterOwner' : IDL.Func(
         [IDL.Opt(IDL.Text), IDL.Opt(IDL.Text)],
         [IDL.Text],
         [],
       ),
+    'updatePrincipal' : IDL.Func([IDL.Opt(IDL.Text), Member], [IDL.Text], []),
   });
 };
 export const init = ({ IDL }) => { return []; };

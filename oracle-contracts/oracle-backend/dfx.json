@@ -28,7 +28,6 @@
     "MemberSnap": {
       "type": "motoko",
       "main": "backend/dailyMemberSnap.mo",
-      
       "args": "--enhanced-orthogonal-persistence"
     },
     "UserUnlock": {

@@ -1,6 +1,7 @@
 import Text "mo:base/Text";
 import Nat "mo:base/Nat";
 import List "mo:base/List";
+import Array "mo:base/Array";
 import Debug "mo:base/Debug";
 import Bool "mo:base/Bool";
 import T "types";
@@ -45,8 +46,6 @@ persistent actor MemberCanister {
         MemberIdxCounter
     };
 
-
-
     //member info
     var MemberData : List.List<T.Member> = List.nil();
 
@@ -57,6 +56,14 @@ persistent actor MemberCanister {
         if (not authorized) {
             Debug.print("Only owner can add member");
             return 0;
+        };
+
+        let exists = List.find<T.Member>(MemberData, func (ml: T.Member) : Bool {
+            ml.principle == m.principle
+        });
+
+        if (exists != null) {
+            return 0; 
         };
         
         
@@ -131,22 +138,76 @@ persistent actor MemberCanister {
         List.toArray(slice)
     };
 
-//idx search
-public query func getMemberByIdx(idx : Nat) : async ?T.Member {
-  List.find<T.Member>(MemberData, func (m : T.Member) : Bool { m.idx == idx })
-};
+    //idx search
+    public query func getMemberByIdx(idx : Nat) : async ?T.Member {
+        List.find<T.Member>(MemberData, func (m : T.Member) : Bool { m.idx == idx })
+    };
 
-//principal search
-public query func getMemberByPrinciple(principle : Text) : async ?T.Member {
-  List.find<T.Member>(MemberData, func (m : T.Member) : Bool { m.principle == principle })
-};
+    //principal search
+    public query func getMemberByPrinciple(principle : Text) : async ?T.Member {
+    List.find<T.Member>(MemberData, func (m : T.Member) : Bool { m.principle == principle })
+    };
+    
 
-//partnerIdx+id search
-public query func getMemberByPartnerIdxAndUser(partner_idx : Nat, user : Text) : async ?T.Member {
-  List.find<T.Member>(MemberData, func (m : T.Member) : Bool {
-    m.partner_idx == partner_idx and m.user == user
-  })
-};
+    public query func getMembersByPrincipleList(principle : Text) : async [T.Member] {
+        List.toArray(
+            List.filter<T.Member>(
+                MemberData,
+                func (m : T.Member) : Bool { m.principle == principle }
+            )
+        )
+    };
+
+    public func updatePrincipal(owner :? Text ,info : T.Member) : async Text {
+        // check owner
+        if (canister_owner == owner) {
+        MemberData := List.map(MemberData, func (m : T.Member) : T.Member {
+            if ( m.user == info.user) {
+                info
+            } else {
+                m
+            }
+        });
+        return "principal updated!";
+        } else {
+        return "Unauthorized access attempt";
+        }
+    };
+
+    //partnerIdx+id search
+    public query func getMemberByPartnerIdxAndUser(partner_idx : Nat, user : Text) : async ?T.Member {
+    List.find<T.Member>(MemberData, func (m : T.Member) : Bool {
+        m.partner_idx == partner_idx and m.user == user
+    })
+    };
+
+    //partner_idx search
+    public query func getMemberByPartnerIdx(owner: Text, partner_idx: Nat) : async [T.Member] {
+        let authorized = canister_owner == ?owner;
+        // check owner
+        if (not authorized) {
+            Debug.print("Only owner can get all members");
+            return [];
+        };
+
+        let filtered = List.filter<T.Member>(
+            MemberData,
+            func (m: T.Member): Bool { m.partner_idx == partner_idx }
+        );
+
+        return List.toArray(filtered);
+    };
+
+    public query func getMemberCountByPartnerIdx(partner_idx: Nat) : async Nat {
+        let filtered = List.filter<T.Member>(
+            MemberData,
+            func (m: T.Member): Bool { m.partner_idx == partner_idx }
+        );
+
+        return List.size(filtered);
+    };
+
+
 
 
 

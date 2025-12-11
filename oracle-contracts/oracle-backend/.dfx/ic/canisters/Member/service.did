@@ -18,6 +18,8 @@ service : {
   getMemberByPrinciple: (principle: text) -> (opt Member) query;
   getMemberCountByPartnerIdx: (partner_idx: nat) -> (nat) query;
   getMemberRowCnt: () -> (nat) query;
+  getMembersByPrincipleList: (principle: text) -> (vec Member) query;
   setCanisterOwner: (newOwner: text) -> (text);
   updateCanisterOwner: (base: opt text, newbase: opt text) -> (text);
+  updatePrincipal: (owner: opt text, info: Member) -> (text);
 }

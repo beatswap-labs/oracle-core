@@ -19,8 +19,10 @@ export interface _SERVICE {
   'getMemberByPrinciple' : ActorMethod<[string], [] | [Member]>,
   'getMemberCountByPartnerIdx' : ActorMethod<[bigint], bigint>,
   'getMemberRowCnt' : ActorMethod<[], bigint>,
+  'getMembersByPrincipleList' : ActorMethod<[string], Array<Member>>,
   'setCanisterOwner' : ActorMethod<[string], string>,
   'updateCanisterOwner' : ActorMethod<[[] | [string], [] | [string]], string>,
+  'updatePrincipal' : ActorMethod<[[] | [string], Member], string>,
 }
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];
