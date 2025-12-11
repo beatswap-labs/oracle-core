@@ -2,43 +2,78 @@ import { Worker } from 'worker_threads';
 import { join } from 'path';
 
 export class WorkerPool {
-  private workers: Worker[] = [];
-  private queue: any[] = [];
-  private idleWorkers: Worker[] = [];
+  private serviceWorkers: Worker[] = [];
+  private userWorkers: Worker[] = [];
+  private serviceQueue: any[] = [];
+  private userQueue: any[] = [];
 
-  constructor(private size = 16) {
+  constructor(private size = 10) {
     for (let i = 0; i < size; i++) {
-      this.createWorker();
+      this.createServiceWorker();
+      this.createUserWorker();
     }
   }
 
-  private createWorker() {
-    const worker = new Worker(join(__dirname, './service.worker.js'));
-    worker.on('message', (msg) => {
-      const { resolve } = (worker as any).currentTask;
+  private createServiceWorker() {
+    const serviceWorker = new Worker(join(__dirname, './service.worker.js'));
+    serviceWorker.on('message', (msg) => {
+      const { resolve } = (serviceWorker as any).currentTask;
       resolve(msg);
-      (worker as any).currentTask = null;
-      this.idleWorkers.push(worker);
-      this.runNext();
+      (serviceWorker as any).currentTask = null;
+      this.serviceWorkers.push(serviceWorker);
+      this.runServiceNext();
     });
-    worker.on('error', console.error);
-    this.idleWorkers.push(worker);
+    serviceWorker.on('error', console.error);
+    this.serviceWorkers.push(serviceWorker);
   }
 
-  runTask(data): Promise<any> {
+  private createUserWorker() {
+    const userWorker = new Worker(join(__dirname, './user.worker.js'));
+    userWorker.on('message', (msg) => {
+      const { resolve } = (userWorker as any).currentTask;
+      resolve(msg);
+      (userWorker as any).currentTask = null;
+      this.userWorkers.push(userWorker);
+      this.runUserNext();
+    });
+    userWorker.on('error', console.error);
+    this.userWorkers.push(userWorker);
+  }
+
+  runServiceTask(data): Promise<any> {
     return new Promise((resolve, reject) => {
-      this.queue.push({ data, resolve, reject });
-      this.runNext();
+      this.serviceQueue.push({ data, resolve, reject });
+      this.runServiceNext();
     });
   }
 
-  private runNext() {
-    if (this.queue.length === 0 || this.idleWorkers.length === 0) return;
+  runUserTask(data): Promise<any> {
+    return new Promise((resolve, reject) => {
+      this.userQueue.push({ data, resolve, reject });
+      this.runUserNext();
+    });
+  }
 
-    const worker = this.idleWorkers.pop();
+  private runServiceNext() {
+    if (this.serviceQueue.length === 0 || this.serviceWorkers.length === 0) return;
+
+    const worker = this.serviceWorkers.pop();
     if (!worker) return;
 
-    const task = this.queue.shift();
+    const task = this.serviceQueue.shift();
+    if (!task) return;
+
+    (worker as any).currentTask = task;
+    worker.postMessage(task.data);
+  }
+
+  private runUserNext() {
+    if (this.userQueue.length === 0 || this.userWorkers.length === 0) return;
+
+    const worker = this.userWorkers.pop();
+    if (!worker) return;
+
+    const task = this.userQueue.shift();
     if (!task) return;
 
     (worker as any).currentTask = task;

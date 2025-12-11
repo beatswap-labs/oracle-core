@@ -1,10 +1,6 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { Telegraf, Markup } from 'telegraf';
 import https = require('node:https');
-import * as path from "path";
-import * as fs from "fs";
-import { AppService } from '../app.service';
-import { InlineKeyboard, Context, InputFile } from "grammy";
 import * as crypto from 'crypto';
 
 
@@ -13,8 +9,9 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
   private bot: Telegraf;
   private users: { id: number; username: string }[] = [];
 
-  private readonly logger = new Logger(TelegramService.name);
+  logger = new Logger('TelegramService');
   private iv = crypto.randomBytes(16);
+  private secretKey = process.env.TELEGRAM_BOT_TOKEN!.split(":")[1].slice(0,32).padEnd(32,'0').substring(0,32);
   
   onModuleInit() {
     const agent = new https.Agent({ family: 4 });
@@ -31,15 +28,12 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
         try {
 
           // 32byte secretkey (256bit)
-          const secretKey = process.env.TELEGRAM_BOT_TOKEN!.split(":")[1].slice(0,32).padEnd(32,'0').substring(0,32);
           
           const plain = userId.toString();
-          const enc = this.encrypt(plain,secretKey, this.iv);
-          const dec = this.decrypt(enc, secretKey);
-
+          const enc = this.encrypt(plain, this.secretKey, this.iv);
 
           ctx.reply("Welcome to BeatSwap", Markup.inlineKeyboard([
-            [Markup.button.url("Connect Now", `https://beatswap.io/?id=${enc}`)],
+            [Markup.button.url("Connect Now", `https://beatswap.io/oracle?id=${enc}`)],
           ]));
 
 
@@ -47,7 +41,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             this.logger.error("start_command error:", error);
           }
     });
-    this.bot.launch({ dropPendingUpdates: true });
+    // this.bot.launch({ dropPendingUpdates: true });
   }
 
   onModuleDestroy() {
@@ -58,19 +52,28 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
     return this.users;
   }
 
-  encrypt(text,secretKey,iv) {
-      const cipher = crypto.createCipheriv('aes-256-cbc', secretKey, iv);
-      let encrypted = cipher.update(text, 'utf8', 'base64');
-      encrypted += cipher.final('base64');
-      return encrypted;
-  };
+  encrypt(text, secretKey, iv) {
+    const cipher = crypto.createCipheriv('aes-256-cbc', secretKey, iv);
 
-  decrypt(encryptedText, secretKey) {
-    const decipher = crypto.createDecipheriv('aes-256-cbc', secretKey, this.iv);
-    let decrypted = decipher.update(encryptedText, 'base64', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
-  };
+    const encrypted = Buffer.concat([
+      iv,
+      cipher.update(text, 'utf8'),
+      cipher.final()
+    ]);
+
+    return encrypted.toString('base64'); // IV 포함, 길이 최소화
+  }
+
+  decrypt(base64Text) {
+    const encrypted = Buffer.from(base64Text, 'base64');
+    const iv = encrypted.slice(0, 16); // 앞 16바이트 IV
+    const data = encrypted.slice(16);  // 나머지가 ciphertext
+
+    const decipher = crypto.createDecipheriv('aes-256-cbc', this.secretKey, iv);
+    let decrypted = decipher.update(data);
+    decrypted = Buffer.concat([decrypted, decipher.final()]);
+    return decrypted.toString('utf8');
+  }
 
 }
 
