@@ -9,7 +9,7 @@ export class BatchService {
 
     constructor(private readonly appService: AppService) {};
 
-    @Cron('0 10 0 * * *') //Daily 00:10
+    // @Cron('0 10 0 * * *') //Daily 00:10
     async addDailyRightsHolder() {
         const now = moment().tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss');
         this.logger.log(`addDailyRightsHolder Batch Start : ${now} (KST)`);
@@ -19,7 +19,7 @@ export class BatchService {
     }
 
 
-    @Cron('0 5 0 * * *') //Daily 00:05
+    // @Cron('0 5 0 * * *') //Daily 00:05
     async addDailyMemberSnap() {
         const now = moment().tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss');
         const date = moment().tz('Asia/Seoul').subtract(1, 'day').format('YYYYMMDD');
@@ -27,7 +27,7 @@ export class BatchService {
         await this.appService.addDailyMemberSnap(date);
     }
 
-    @Cron('0 5 0 * * *') //Daily 00:05
+    // @Cron('0 5 0 * * *') //Daily 00:05
     async addDailyTransactionSnap() {
         const now = moment().tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss');
         const date = moment().tz('Asia/Seoul').subtract(1, 'day').format('YYYYMMDD');
@@ -35,11 +35,18 @@ export class BatchService {
         await this.appService.addDailyTransactionSnap(date);
     }
 
-    @Cron('0 5 0 * * *') //Daily 00:05
+    // @Cron('0 5 0 * * *') //Daily 00:05
     async addDailyRoyaltySnap() {
         const now = moment().tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss');
         const date = moment().tz('Asia/Seoul').subtract(1, 'day').format('YYYYMMDD');
         this.logger.log(`addDailyRoyaltySnap Batch Start : ${now} (KST)`);
         await this.appService.addDailyRoyaltySnap(date);
+    }
+
+    // @Cron('0 30 10 * * *') //Daily 10:30
+    async addDailySongUpdate() {
+        const now = moment().tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss');
+        this.logger.log(`addDailySongUpdate Batch Start : ${now} (KST)`);
+        await this.appService.addPaykhanMusicWorkInfo();
     }
 }
