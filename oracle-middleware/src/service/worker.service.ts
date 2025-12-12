@@ -22,10 +22,4 @@ export class WorkerService {
         this.logger.log(`getPrincipalById called with partnerIdx: ${partnerIdx}, id: ${id}`);
         return this.workerPool.runUserTask({ partnerIdx, id });
     }   
-
-
-    async userPrincipalMigration(startIdx: number, endIdx: number): Promise<any> {
-        this.logger.log(`userPrincipalMigration start`);
-        return this.workerPool.runUserTask({ migration: true, startIdx, endIdx });
-    }  
 }

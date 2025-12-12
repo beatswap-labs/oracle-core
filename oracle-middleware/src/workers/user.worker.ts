@@ -26,14 +26,11 @@ const logger = new Logger('UserWorker');
 
 parentPort?.on('message', async (data) => {
   try {
-      const { id, partnerIdx, migration, startIdx, endIdx } = data;
-        if(migration) {
-            const result = await userPrincipalMigration(startIdx, endIdx);
-            parentPort?.postMessage(result);
-        } else {
-            const result = await getPrincipalById(partnerIdx, id);
-            parentPort?.postMessage(result);
-        }
+      const { id, partnerIdx } = data;
+
+        const result = await getPrincipalById(partnerIdx, id);
+        parentPort?.postMessage(result);
+
     } catch (error) {
       parentPort?.postMessage({
         success: false,
@@ -42,38 +39,6 @@ parentPort?.on('message', async (data) => {
     }
   });
 
-  async function userPrincipalMigration(startIdx: number, endIdx: number): Promise<any> {
-        const userInfo = await db.userRepo2
-                        .createQueryBuilder('userbackup')
-                        .where('userbackup.principal = :principal', {principal: ''})
-                        .andWhere('userbackup.idx BETWEEN :startIdx AND :endIdx', { startIdx, endIdx })
-                        .getMany();
-
-        if(userInfo.length > 0) {
-            
-            for(const user of userInfo) {
-                
-                const uniqueId = `${user.id}-${Date.now()}-${Math.floor(Math.random()*1000)}`;
-                // identity
-                await runDfxCommand(`identity new ${uniqueId} --storage-mode=plaintext`, uniqueId);
-                // identity list
-                await runDfxCommand(`identity use ${uniqueId}`, uniqueId);
-                // principal
-                const principal = await runDfxCommand("identity get-principal", uniqueId);
-                
-                logger.log(`migration start :: ${user.idx}, id :: ${user.id} principal :: ${principal}`);
-
-
-            await db.userRepo2.update({
-                        id: user.id,
-                        evmAddress: user.evmAddress,
-                        partnerIdx: user.partnerIdx},
-                        { principal: principal }
-                    );
-            }
-        }
- }
-
   async function getPrincipalById(partnerIdx: number, id: string) {
     
           let principal:any[] = [];
@@ -81,7 +46,7 @@ parentPort?.on('message', async (data) => {
           if(partnerIdx === 2 || partnerIdx === 5) { 
             id = telegramService.decrypt(id);
 
-            const userInfo = await db.userRepo2
+            const userInfo = await db.userBackupRepo
                                 .createQueryBuilder('userbackup')
                                 .where('userbackup.evmAddress = :id', { id })
                                 .getMany();
@@ -112,7 +77,7 @@ parentPort?.on('message', async (data) => {
               }
               logger.log(`principal ::: ${principal[0].principle}`);
 
-              await db.userRepo2.save({
+              await db.userBackupRepo.save({
                               id: id,
                               evmAddress: id,
                               principal: principal[0].principle,
@@ -127,7 +92,7 @@ parentPort?.on('message', async (data) => {
                   created_at: principal[0].created_at
               };
           } else {
-            const userInfo = await db.userRepo2
+            const userInfo = await db.userBackupRepo
                                 .createQueryBuilder('userbackup')
                                 .where('userbackup.evmAddress = :id', { id })
                                 .getMany();
@@ -185,7 +150,7 @@ parentPort?.on('message', async (data) => {
                       
                       for (const m of merged) {
                         if(idx === 1) {         
-                          await db.userRepo2.save({
+                          await db.userBackupRepo.save({
                               id: pid,
                               evmAddress: id,
                               principal: m.principle,
@@ -193,7 +158,7 @@ parentPort?.on('message', async (data) => {
                               createdAt: m.created_at,
                           });
                         } else {
-                            await db.userRepo2.save({
+                            await db.userBackupRepo.save({
                               id: id,
                               evmAddress: id,
                               principal: m.principle,

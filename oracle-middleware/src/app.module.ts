@@ -4,6 +4,7 @@ import { BeatSwapController } from './beatswap.controller';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ConfigModule } from '@nestjs/config';
 import { AppService } from './app.service';
+import { BatchSchedule } from './batch/batch.shedule';
 import { BatchService } from './batch/batch.service';
 import { TelegramService } from './telegram/telegram.service';
 import { WorkerService } from './service/worker.service';
@@ -17,6 +18,6 @@ import { CanisterService } from './service/canister.service';
     }),
   ],
   controllers: [AppController, BeatSwapController],
-  providers: [BatchService, AppService, TelegramService, CanisterService, WorkerService],
+  providers: [BatchSchedule, BatchService, AppService, TelegramService, CanisterService, WorkerService],
 })
 export class AppModule {}

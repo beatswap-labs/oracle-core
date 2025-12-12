@@ -106,15 +106,6 @@ export class BeatSwapController {
         return this.appService.getMigration(body.startIdx, body.endIdx, body.cnt);
     }
 
-    //token transaction
-    @Post('getMigrationSub')
-    async getMigrationSub(@Body() body: beatSwapDto) {
-        this.logger.log(`getTokenTransaction Call::: page: ${body.startIdx}, ${body.endIdx},cnt: ${body.cnt}`);
-
-
-        return this.appService.getMigrationSub(body.startIdx);
-    }
-
     //addPrincipal
     @Post('addPrincipal')
     async addPrincipal(@Body() body: beatSwapDto) {
@@ -127,30 +118,5 @@ export class BeatSwapController {
             return { success: false };
         }
     }
-
-
-    //token transaction
-    @Post('getArcIdx')
-    async getArcIdx(@Body() body: beatSwapDto) {
-        this.logger.log(`getTokenTransaction Call::: page: ${body.startIdx}, ${body.endIdx},cnt: ${body.cnt}`);
-
-
-        return this.appService.getArcIdx(body.startIdx, body.endIdx, body.cnt);
-    }
-
-    // @Post('getBeatSwapUnlockInfo')
-    // async getBeatSwapUnlockInfo(@Body() body: beatSwapDto) {
-    //     this.logger.log(`getBeatSwapUnlockInfo Call ::: ${body.id}`);
-    //     return this.appService.getBeatSwapUnlockInfo(body.id);
-    // }
-
-    
-    @Post('UserInfoMigration')
-    async UserInfoMigration(@Body () body: beatSwapDto) {
-        this.logger.log(`UserInfoMigration Call ::: body.startIdx :: ${body.startIdx} , body.endIdx :: ${body.endIdx}`);
-        return this.workerService.userPrincipalMigration(body.startIdx, body.endIdx);
-    }
-
-
 
 }

@@ -1,6 +1,7 @@
-import { Entity, Column, PrimaryGeneratedColumn } from 'typeorm';
+import { Entity, Index, Column, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity()
+@Index('idx_user_id_partnerIdx', ['id', 'partnerIdx'])
 export class OracleUserInfoBackup {
   @PrimaryGeneratedColumn()
   idx: number;

@@ -216,11 +216,6 @@ export class AppController {
         return { success: true };
     }
 
-    @Post('addDailyRightsHolder')
-    async addDailyRightsHolder() {
-        const response = await this.appService.addDailyRightsHolder();
-    }
-
 
     @Post('addPaykhanMusicWorkInfo')
     async addPaykhanMusicWorkInfo(@Body() body: oracleDto) {
