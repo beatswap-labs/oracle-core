@@ -9,7 +9,7 @@ export class BeatSwapController {
 
     private readonly logger = new Logger(BeatSwapController.name);
 
-    @Get('test')
+    @Post('test')
     async test() {
         return { status: 'success' };
     }

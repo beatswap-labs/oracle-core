@@ -36,8 +36,8 @@ export class BatchService {
         const now = moment().tz('Asia/Seoul');
 
         for(let i = 0; i < musicInfo.length; i++) {
-            this.logger.log(`musicInfo length ${musicInfo.length}`);
-            const data = await this.requestHolderRetry(web3Router, musicInfo, i, this.logger);
+            this.logger.log(`musicInfo length ${musicInfo[i].idx}`);
+            const data = await this.requestHolderRetry(web3Router, musicInfo, i);
             if (!data) {
                 continue;
             }
@@ -131,11 +131,12 @@ export class BatchService {
             if(data == '[]') {
                 return {response: 'Nothing to update'};
             }
-            this.logger.log(`response url ::: ${url}`);
+            this.logger.log(`req data ::: ${data}`);
             
-            
+            await this.canisterService.oracleActor.getMusicInfoByPaykhanData(OWNER_KEY, data);
             for(let i = 0; i < JSON.parse(data).length; i++) {
                 this.logger.log(`added idx ::: ${JSON.parse(data)[i].idx}`);
+                await this.appService.addRightsHolder(Number(JSON.parse(data)[i].idx));
             }   
             
         } catch(error) {
@@ -144,37 +145,7 @@ export class BatchService {
         return this.addPaykhanMusicWorkInfo();
     }
 
-    async getDailyRightsHolders(address: string): Promise<any> {
-        type Item = {
-            neighboring_holder_staked_address: string;
-            neighboring_holder_staked_mainnet: string;
-            ratio: string;  
-        };
-
-        const now = moment().utc();
-        const date = now.format('YYYYMMDD');
-
-        const res = await this.canisterService.holderActor.getDailyRightsHoldersByYMD(address, date);
-        let sumAmount = 0;
-        
-        for(let i = 0; i < res.length; i++) {
-            sumAmount += Number(res[i].staked_amount);
-            if(i == res.length-1){
-                for(let j = res.length-1; j >= 0; j--){
-                    const ratio = this.appService.roundTo((res[j].staked_amount/sumAmount)*100, 2);
-                    Object.assign(res[j], {"ratio": `${ratio}%`});
-                }
-            }
-        }
-        
-        const sorted = res.sort((a,b)=> Number(b.staked_amount) - Number(a.staked_amount));
-
-        const limit = sorted.map(({staked_amount,neighboring_token_address,verification_date, ...rest})=>rest).slice(0, 20);
-
-        return limit;
-    }
-
-    async requestHolderRetry(web3Router, musicInfo, i, logger, maxRetry = 3, delayMs = 3000) {
+    async requestHolderRetry(web3Router, musicInfo, i, maxRetry = 3, delayMs = 3000) {
             for (let attempt = 1; attempt <= maxRetry; attempt++) {
                 try {
                     const req = httpMocks.createRequest({
@@ -182,7 +153,7 @@ export class BatchService {
                         url: '/getStaker',
                         query: { contract_address: musicInfo[i].op_neighboring_token_address },
                     });
-                    logger.log(`song contract_address ${musicInfo[i].op_neighboring_token_address}`);
+                    this.logger.log(`song contract_address ${musicInfo[i].op_neighboring_token_address}`);
     
                     const res = httpMocks.createResponse({ eventEmitter: EventEmitter });
     
@@ -204,13 +175,13 @@ export class BatchService {
                     return res._getData();
     
                 } catch (err) {
-                    logger.error(`getStaker attempt ${attempt}/${maxRetry} failed: ${err.message}`);
+                    this.logger.error(`getStaker attempt ${attempt}/${maxRetry} failed: ${err.message}`);
     
                     if (attempt < maxRetry) {
                         // 3 seconds delay before retrying
                         await new Promise(r => setTimeout(r, delayMs));
                     } else {
-                        logger.error(`getStaker failed after ${maxRetry} attempts. Skipping...`);
+                        this.logger.error(`getStaker failed after ${maxRetry} attempts. Skipping...`);
                         return null;
                     }
                 }

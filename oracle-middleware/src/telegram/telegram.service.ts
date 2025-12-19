@@ -41,7 +41,7 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
             this.logger.error("start_command error:", error);
           }
     });
-    // this.bot.launch({ dropPendingUpdates: true });
+    this.bot.launch({ dropPendingUpdates: true }); 
   }
 
   onModuleDestroy() {
@@ -61,13 +61,13 @@ export class TelegramService implements OnModuleInit, OnModuleDestroy {
       cipher.final()
     ]);
 
-    return encrypted.toString('base64'); // IV 포함, 길이 최소화
+    return encrypted.toString('base64');
   }
 
   decrypt(base64Text) {
     const encrypted = Buffer.from(base64Text, 'base64');
-    const iv = encrypted.slice(0, 16); // 앞 16바이트 IV
-    const data = encrypted.slice(16);  // 나머지가 ciphertext
+    const iv = encrypted.slice(0, 16); 
+    const data = encrypted.slice(16);
 
     const decipher = crypto.createDecipheriv('aes-256-cbc', this.secretKey, iv);
     let decrypted = decipher.update(data);

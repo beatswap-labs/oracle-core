@@ -34,8 +34,6 @@ parentPort?.on('message', async (data) => {
     }
   });
 
-
-
   async function iplMint(id: string, partnerIdx: number, mintType: string, amount: number) {
       const OWNER_KEY = configService.get<string>('OWNER_KEY');
       

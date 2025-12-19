@@ -1,7 +1,6 @@
 import { parentPort } from 'worker_threads';
 import { ConfigService } from '@nestjs/config';
 import axios from 'axios';
-import { Principal } from "@dfinity/principal";
 import { createCanisterService } from "./canister.factory";
 import { Logger } from '@nestjs/common';
 import { getAddress } from 'ethers';
@@ -9,7 +8,6 @@ import * as moment from 'moment';
 import { exec } from "child_process";
 import { TelegramService } from '../telegram/telegram.service';
 import { userDBService } from './db.factory';
-import { start } from 'repl';
 
 const configService = new ConfigService();
 const telegramService = new TelegramService();

@@ -15,7 +15,7 @@ export class AppController {
 
     @Post('test')
     async test() {
-        return this.appService.addPaykhanMusicWorkInfo();
+        return { status: 'success' };
     }
 
     //Music info list
@@ -178,7 +178,6 @@ export class AppController {
             
         try {
             const data = await this.appService.addVerificationUnlockListOra(body.idxList, body.principal);
-
              return { success: true , data};
         } catch(e) {
             this.logger.error("error",e);
@@ -194,13 +193,25 @@ export class AppController {
 
         try {
             const data = await this.appService.addUserPlayData(body.partnerIdx, body.id, body.idx);
-
-             return { success: true , data};
+            return { success: true , data};
         } catch(e) {
             this.logger.error("error",e);
             return { success: false };
         }
 
+    }
+
+    @Post('addDailyRightsHolder')
+    async addDailyRightsHolder(@Body() body: oracleDto) {
+        try {
+            const response = await this.appService.addDailyRightsHolder();
+            this.logger.log(response);
+        }   catch(e) {
+            this.logger.error("error",e);
+            return { success: false };
+        }
+
+        return { success: true };
     }
 
     @Post('addRightsHolder')
@@ -215,19 +226,6 @@ export class AppController {
 
         return { success: true };
     }
-
-
-    @Post('addPaykhanMusicWorkInfo')
-    async addPaykhanMusicWorkInfo(@Body() body: oracleDto) {
-        const response = await this.appService.addPaykhanMusicWorkInfo();
-        return response;
-    }
-
-    // @Post('addPartnerUnlockInfo')
-    // async addPartnerUnlockInfo(@Body() body: oracleDto) {
-    //     const response = await this.appService.addPartnerUnlockInfo(body.partnerIdx, body.idx);
-    //     return response;
-    // }
 
     //unlock Count
     @Post('getUnlockCount')
@@ -246,16 +244,7 @@ export class AppController {
     }
 
 
-    //addPrincipal batch
-    // @Post('addPrincipalbatch')
-    // async addPrincipalbatch(@Body() body: oracleDto) {
-    //     this.logger.log(`addPrincipal Call ::  ${body.partnerIdx} || ${body.idx}`);
-    //     const response = await this.appService.addPrincipalBatch(body.partnerIdx, body.idx);
-    //     return response;
-    // }
-
-
-    //기존 결제건 pending처리
+    //pending
     @Post('updatePending')
     async updatePending(@Body() body: oracleDto) {
         this.logger.log(`updatePending Call ::  ${body.partnerIdx}`);
@@ -290,31 +279,52 @@ export class AppController {
 
     @Post('addOracleMint')
     async addOracleMint(@Body() body: oracleDto) {
-        this.logger.log(`addOracleMint Call :: Type :: ${body.mintType} ID :: ${body.principal}  amount :: ${body.amount}`);
-        const now = Date.now();
-        const lastTime = this.recentRequests.get(body.principal) || 0;
+        this.logger.log(`addOracleMint Call :: Type :: ${body.mintType} ID :: ${body.principal} songIdxList :: ${body.unlock_total_count}`);
+    
+        let amount;
+        
+        if(body.mintType === 'preStream') {
+            amount = 1;
+            const now = Date.now();
+            const lastTime = this.recentRequests.get(body.principal) || 0;
 
-        if (now - lastTime < this.REQUEST_INTERVAL) {
-        // duplicate rquest
-            this.logger.log(`Duplicate mint request blocked for principal: ${body.principal}`);
-            return { success: false, message: 'Too many requests' };
-        }
+            if (now - lastTime < this.REQUEST_INTERVAL) {
+                // duplicate request
+                this.logger.log(`Duplicate mint request blocked for principal: ${body.principal}`);
+                return { success: false, message: 'Too many requests' };
+            }
 
-        if(body.amount <= 0 || body.amount > 3000) {
-            this.logger.log(`rejected principal ::: ${body.principal}`);
-            return { success: false, message: 'reject request param' };
-        }
-        this.recentRequests.set(body.principal, now);
+            this.recentRequests.set(body.principal, now);
+            
+            //memory cleanup
+            setTimeout(() => this.recentRequests.delete(body.principal), this.REQUEST_INTERVAL);
 
-        // memory cleanup
-        setTimeout(() => this.recentRequests.delete(body.principal), this.REQUEST_INTERVAL);
+            try {
+                body.mintType = 'Stream';
 
-        try {
-            const response = await this.workerService.mintTokenForOracle(body.principal, body.mintType, body.amount);
-            return { success: true , response};
-        } catch(e) {
-            this.logger.error("error",e);
-            return { success: false };
+                await this.workerService.mintTokenForOracle(body.principal, body.mintType, amount);
+                return { success: true };
+            } catch(e) {
+                this.logger.error("error",e);
+                return { success: false };
+            }
+        } else {
+
+            try {
+                if(body.mintType === 'Unlock') {
+                    amount = 100;
+                    for (let i = 0; i < body.unlock_total_count; i++) {
+                        await this.workerService.mintTokenForOracle(body.principal, body.mintType, amount);
+                    }
+                } else if (body.mintType === 'Stream'){
+                    amount = 1;
+                    await this.workerService.mintTokenForOracle(body.principal, body.mintType, amount);
+                }
+                return { success: true };
+            } catch(e) {
+                this.logger.error("error",e);
+                return { success: false };
+            }
         }
     }
 

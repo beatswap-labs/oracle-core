@@ -3,12 +3,11 @@ import { WorkerPool } from '../workers/worker-pool';
 
 @Injectable()
 export class WorkerService {
-    private workerPool = new WorkerPool(5); // worker pool size
+    private workerPool = new WorkerPool(20); // worker pool size
 
     private readonly logger = new Logger(WorkerService.name);
     
     async mintToken(id: string, partnerIdx: number, mintType: string, amount: number): Promise<any> {
-        
         this.logger.log(`mintToken called with id: ${id}, partnerIdx: ${partnerIdx}, mintType: ${mintType}, amount: ${amount}`);
         return this.workerPool.runServiceTask({ id, partnerIdx, mintType, amount });
     }

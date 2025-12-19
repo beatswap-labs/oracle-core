@@ -12,6 +12,7 @@ import * as zlib from 'zlib';
 import { CanisterService } from './service/canister.service';
 import * as util from 'util';
 import { ethers } from 'ethers';
+import { WorkerService } from './service/worker.service';
 
 
 
@@ -77,7 +78,7 @@ interface rightHolderReq {
 @Injectable()
 export class AppService {
 
-    constructor(private configService: ConfigService, private telegramService: TelegramService, private canisterService: CanisterService,) {}
+    constructor(private configService: ConfigService, private telegramService: TelegramService, private canisterService: CanisterService, private workerService: WorkerService) {}
     private readonly logger = new Logger(AppService.name);
     
 
@@ -163,6 +164,90 @@ export class AppService {
         }
     
     }
+
+    async addDailyRightsHolder() {
+        const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
+
+        if(!OWNER_KEY){
+            this.logger.error('Cannot find OWNER_KEY');
+            throw new Error('Cannot find OWNER_KEY');
+        }
+
+        const musicInfo = await this.canisterService.oracleActor.getMusicWorkInfos();
+        const now = moment().tz('Asia/Seoul');
+
+        const verificationDate = now.clone().add(1, 'day');
+
+        for(let i = 0; i < musicInfo.length; i++) {
+            this.logger.log(`musicInfo length ${musicInfo[i].idx}`);
+            const data = await this.requestHolderRetry(web3Router, musicInfo, i);
+            const res = await this.canisterService.holderActor.getDailyRightsHoldersByYMD(musicInfo[i].op_neighboring_token_address, verificationDate.format('YYYYMMDD'));
+        
+            this.logger.log(res);
+            if (!data || res.length > 0) {
+                continue;
+            }
+
+            const reqData: rightHolderReq[] = [];
+
+            for(let j = 0; j < data.length; j++) {
+                
+
+                reqData.push({ neighboring_token_address: musicInfo[i].op_neighboring_token_address, neighboring_holder_staked_address: data[j].userMetaId, staked_amount: data[j].userStakingAmount.toString(), verification_date: verificationDate.format('YYYY-MM-DD'), neighboring_holder_staked_mainnet: 'Optimism'})
+            }
+            
+            try {
+                this.logger.log(`addRightsHolder reqData ::: ${JSON.stringify(reqData)}`);
+                const res = await this.canisterService.holderActor.addDailyRightsHoldersData(OWNER_KEY, JSON.stringify(reqData));
+                this.logger.log('reponse ::',res);
+            } catch (err) {
+                this.logger.error(`addDailyRightsHolder rate ::: ${JSON.stringify(reqData)}`, err.message);
+            }
+        }
+    }
+
+    async requestHolderRetry(web3Router, musicInfo, i, maxRetry = 3, delayMs = 3000) {
+        for (let attempt = 1; attempt <= maxRetry; attempt++) {
+            try {
+                const req = httpMocks.createRequest({
+                    method: 'GET',
+                    url: '/getStaker',
+                    query: { contract_address: musicInfo[i].op_neighboring_token_address },
+                });
+                this.logger.log(`song contract_address ${musicInfo[i].op_neighboring_token_address}`);
+
+                const res = httpMocks.createResponse({ eventEmitter: EventEmitter });
+
+                await new Promise((resolve, reject) => {
+                    res.on('end', resolve);
+                    res.on('finish', resolve);
+                    res.on('error', reject);
+
+                    web3Router.handle(req, res, (err: any) => {
+                        if (err) return reject(err);
+
+                        setImmediate(() => {
+                            if (!res.writableEnded) {
+                                reject(new Error('Router not Response'));
+                            }
+                        });
+                    });
+                });
+                return res._getData();
+
+            } catch (err) {
+                this.logger.error(`getStaker attempt ${attempt}/${maxRetry} failed: ${err.message}`);
+
+                if (attempt < maxRetry) {
+                    // 3 seconds delay before retrying
+                    await new Promise(r => setTimeout(r, delayMs));
+                } else {
+                    this.logger.error(`getStaker failed after ${maxRetry} attempts. Skipping...`);
+                    return null;
+                }
+            }
+        }
+    }
     
     async addMusicInfo(): Promise<any> {
         const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
@@ -234,43 +319,6 @@ export class AppService {
         this.logger.log('response ::',res);
 
         return this.addVerificationUnlockListPayKhan(idx);
-    }
-
-    async addPaykhanMusicWorkInfo(): Promise<any> {
-        const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
-        const paykhanSongUrl = this.configService.get<string>('PAYKHAN_SONG_URL');
-
-        if(!OWNER_KEY && !paykhanSongUrl){
-            this.logger.error('Cannot find Config SET');
-            throw new Error('Cannot find Config SET');
-        }
-
-        const res = await this.canisterService.oracleActor.getMusicWorkInfosByOwner(OWNER_KEY);
-
-        const lastMusicIdx = res[0].idx;
-        this.logger.log(`last idx ::: ${lastMusicIdx}`);
-
-        const url = paykhanSongUrl!+lastMusicIdx;
-       
-        try {
-            const response = await fetch(url);
-            const data = (await response.text()).replaceAll('hanshop.s3.ap-northeast-2.amazonaws.com','resource.beatswap.io');
-            if(data == '[]') {
-                return {response: 'Nothing to update'};
-            }
-            this.logger.log(`response url ::: ${url}`);
-            
-            
-            // await this.canisterService.oracleActor.getMusicInfoByPaykhanData(OWNER_KEY, data);
-            for(let i = 0; i < JSON.parse(data).length; i++) {
-                this.logger.log(`added idx ::: ${JSON.parse(data)[i].idx}`);
-                // await this.addRightsHolder(Number(JSON.parse(data)[i].idx));
-            }   
-            
-        } catch(error) {
-            this.logger.log(error);
-        }
-        return this.addPaykhanMusicWorkInfo();
     }
 
     async getUnlockCount(body: any[]): Promise<any> {
@@ -488,30 +536,30 @@ export class AppService {
         );
 
 
-        for (let i = 0; i < 6; i++) {
+        for (let i = 0; i < 82; i++) {
             const snap = snaps[i][0];
             const date = `${snap.snap_date.slice(0, 4)}-${snap.snap_date.slice(4, 6)}-${snap.snap_date.slice(6, 8)}`;
             graph.push({ date, value: Number(snap.member_count) });
         }
         
-        // const getRangeSum = (range: number) =>
-        //     graph.slice(-range).reduce((sum, item) => sum + item.value, 0);
+        const getRangeSum = (range: number) =>
+            graph.slice(-range).reduce((sum, item) => sum + item.value, 0);
 
-        // const week = getRangeSum(7);
-        // const month = getRangeSum(30);
+        const week = getRangeSum(7);
+        const month = getRangeSum(30);
 
         // this.logger.log(`week ::: ${week} month ::: ${month}`);
 
         const sumGraph = graph.reduce<{ date: string; value: number }[]>((acc, item) => {
             const prev = acc.length ? acc[acc.length - 1].value: 0;
             this.logger.log(`prev ::: ${prev} item.value ::: ${item.value}`);
-            acc.push({ date: item.date, value: item.value });
+            acc.push({ date: item.date, value: prev + item.value });
             return acc;
         }, []);
 
         this.cachedRWAContributorsGragh ={
-                week: "4481",
-                month: "18820",
+                week: "69738",
+                month: "185458",
                 gragh : sumGraph
             };
         }   
@@ -1074,9 +1122,10 @@ export class AppService {
         
         const now = moment().utc();
 
-        this.sendUnlockListForOra(idxList, principal, OWNER_KEY);
+        // this.sendUnlockListForOra(idxList, principal, OWNER_KEY);
 
-        const songPrice = 0.08;
+        const songUsdtPrice = 0.08;
+        const songPrice = 70;
 
         const list = await this.canisterService.oracleActor.getMusicContractAddress();
         
@@ -1098,14 +1147,20 @@ export class AppService {
             Object.assign(stakerInfo[i], {"idx": `${Number(idxListFromContracts)}`});
             Object.assign(stakerInfo[i], {"neighboring_holder_staked_address": `${stakerInfo[i].neighboring_holder_staked_address}`});
             Object.assign(stakerInfo[i], {"ratio": `${ratio}%`});
-        }
 
+        }
+        
         const result = ( await Promise.all (
             res = stakerInfo     
-                .map(item => {
-                    const amount = songPrice * (Number(item.ratio.replace('%','')/100))
-                    
-                    const weiAmount = ethers.parseEther(amount.toString());
+            .map(async (item) => {
+                const usdtAmount = songUsdtPrice * (Number(item.ratio.replace('%','')/100));
+                const iplAmount = this.roundTo(songPrice * (Number(item.ratio.replace('%','')/100)), 0);
+                
+                const weiAmount = ethers.parseEther(usdtAmount.toString());
+                
+                const userInfo = await this.workerService.getPrincipalById(6, item.neighboring_holder_staked_address);
+                this.logger.log(`>>>> ${iplAmount} >>> ${userInfo[0].principal}`)
+                this.workerService.mintTokenForOracle(userInfo[0].principal, 'royalty', iplAmount);
 
                     return {
                         idx: Number(item.idx),

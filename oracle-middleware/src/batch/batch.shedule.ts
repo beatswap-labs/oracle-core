@@ -9,7 +9,10 @@ export class BatchSchedule {
 
     constructor(private readonly batchService: BatchService) {};
 
-    @Cron('0 45 23 * * *') //Daily 23:45
+    
+
+    // @Cron('*/30 * * * * *') //Test
+    // @Cron('0 30 17 * * *') //Daily 17:30
     async addDailyRightsHolder() {
         const now = moment().tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss');
         this.logger.log(`addDailyRightsHolder Batch Start : ${now} (KST)`);
@@ -19,7 +22,8 @@ export class BatchSchedule {
     }
 
 
-    @Cron('0 5 0 * * *') //Daily 00:05
+    // @Cron('*/30 * * * * *') //Test
+    // @Cron('0 5 0 * * *') //Daily 00:05
     async addDailyMemberSnap() {
         const now = moment().tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss');
         const date = moment().tz('Asia/Seoul').subtract(1, 'day').format('YYYYMMDD');
@@ -27,7 +31,8 @@ export class BatchSchedule {
         await this.batchService.addDailyMemberSnap(date);
     }
 
-    @Cron('0 5 0 * * *') //Daily 00:05
+    // @Cron('*/30 * * * * *') //Test
+    // @Cron('0 5 0 * * *') //Daily 00:05
     async addDailyTransactionSnap() {
         const now = moment().tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss');
         const date = moment().tz('Asia/Seoul').subtract(1, 'day').format('YYYYMMDD');
@@ -35,7 +40,8 @@ export class BatchSchedule {
         await this.batchService.addDailyTransactionSnap(date);
     }
 
-    @Cron('0 5 0 * * *') //Daily 00:05
+    // @Cron('*/30 * * * * *') //Test
+    // @Cron('0 5 0 * * *') //Daily 00:05
     async addDailyRoyaltySnap() {
         const now = moment().tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss');
         const date = moment().tz('Asia/Seoul').subtract(1, 'day').format('YYYYMMDD');
@@ -43,7 +49,8 @@ export class BatchSchedule {
         await this.batchService.addDailyRoyaltySnap(date);
     }
 
-    @Cron('0 30 10 * * *') //Daily 10:30
+    // @Cron('*/30 * * * * *') //Test
+    // @Cron('0 30 10 * * *') //Daily 10:30
     async addDailySongUpdate() {
         const now = moment().tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss');
         this.logger.log(`addDailySongUpdate Batch Start : ${now} (KST)`);
