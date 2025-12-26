@@ -12,7 +12,7 @@ export class BatchSchedule {
     
 
     // @Cron('*/30 * * * * *') //Test
-    // @Cron('0 30 17 * * *') //Daily 17:30
+    // @Cron('0 10 18 * * *') //Daily 18:10
     async addDailyRightsHolder() {
         const now = moment().tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss');
         this.logger.log(`addDailyRightsHolder Batch Start : ${now} (KST)`);

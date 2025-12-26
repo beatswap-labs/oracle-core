@@ -34,6 +34,7 @@ export class BatchService {
 
         const musicInfo = await this.canisterService.oracleActor.getMusicWorkInfos();
         const now = moment().tz('Asia/Seoul');
+        const verificationDate = now.clone().add(1, 'day');
 
         for(let i = 0; i < musicInfo.length; i++) {
             this.logger.log(`musicInfo length ${musicInfo[i].idx}`);
@@ -45,7 +46,7 @@ export class BatchService {
             const reqData: rightHolderReq[] = [];
 
             for(let j = 0; j < data.length; j++) {
-                reqData.push({ neighboring_token_address: musicInfo[i].op_neighboring_token_address, neighboring_holder_staked_address: data[j].userMetaId, staked_amount: data[j].userStakingAmount.toString(), verification_date: now.add(1,'day').format('YYYY-MM-DD'), neighboring_holder_staked_mainnet: 'Optimism'})
+                reqData.push({ neighboring_token_address: musicInfo[i].op_neighboring_token_address, neighboring_holder_staked_address: data[j].userMetaId, staked_amount: data[j].userStakingAmount.toString(), verification_date: verificationDate.format('YYYY-MM-DD'), neighboring_holder_staked_mainnet: 'Optimism'})
             }
             
             try {
