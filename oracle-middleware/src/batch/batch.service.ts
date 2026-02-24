@@ -5,6 +5,7 @@ import { CanisterService } from '../service/canister.service';
 import { AppService } from '../app.service';
 import * as httpMocks from 'node-mocks-http';
 import { EventEmitter } from 'stream';
+import axios from 'axios';
 
 
 
@@ -188,4 +189,123 @@ export class BatchService {
                 }
             }
         }
+
+
+    async updatePending() {
+        const TON_PURCHASE_URL = this.configService.get<string>('TON_PURCHASE_URL') || '';
+        const KAIA_PURCHASE_URL = this.configService.get<string>('KAIA_PURCHASE_URL') || '';
+        const TON_PENDING_URL = this.configService.get<string>('TON_PENDING_URL') || '';
+        const KAIA_PENDING_URL = this.configService.get<string>('KAIA_PENDING_URL') || '';
+        let res;
+        
+        const partnerIdxList = [2, 3]; // 2: TON, 3: KAIA
+
+        const now = moment().utc();
+        const hanPrice = await this.appService.getHanPrice();
+        const exchangeUSD = await this.appService.getExchangeUSD();
+        this.logger.log(`hanPrice ::: ${hanPrice}`);
+        this.logger.log(`exchangeUSD ::: ${exchangeUSD}`);
+        
+        try {
+            const hanKRW = this.appService.roundTo(hanPrice * exchangeUSD,18);
+            this.logger.log(`hanKRW ::: ${hanKRW}`);
+            const miniRoyalty = 70/hanKRW;
+            this.logger.log(`miniRoyalty :: ${miniRoyalty}`);
+            let resData: any;
+            for (const partnerIdx of partnerIdxList) {
+                if(partnerIdx === 2) {
+                    resData = await axios.get(TON_PURCHASE_URL);
+                    resData = resData.data.data;
+                    if(resData.length === 0) {
+                        this.logger.log('Nothing to update Ton');
+                        continue;
+                    }
+                } else if(partnerIdx === 3){
+                    resData = await axios.get(KAIA_PURCHASE_URL);
+                    resData = resData.data.data;
+                    if(resData.length === 0) {
+                        this.logger.log('Nothing to update Kaia');
+                        continue;
+                    }
+                }
+                for(let idx = 0; idx < resData.length; idx ++) {
+                    const list = await this.canisterService.oracleActor.getMusicContractAddress();
+                    const jsonList = JSON.parse(list);
+
+                    this.logger.log(resData[idx].tune_idx);
+                    const addressList: any[] = [];
+
+                    jsonList.filter(item => item.idx === resData[idx].tune_idx && item.contract)
+                            .forEach(item => addressList.push(item.contract));
+                        
+                    this.logger.log("addressList", addressList);
+                    
+                    const stakerInfo = await this.canisterService.holderActor.getDailyRightsHoldersByYMD_List(addressList,  now.format('YYYYMMDD'));
+            
+                    
+                    for(let i = 0; i < stakerInfo.length; i++) {
+                        const ratio = this.appService.roundTo((Number(stakerInfo[i].staked_amount)/2000)*100, 2);
+                        const idxListFromContracts = jsonList.find(item => item.contract === stakerInfo[i].neighboring_token_address)?.idx || null;
+                        Object.assign(stakerInfo[i], {"idx": `${Number(idxListFromContracts)}`});
+                        Object.assign(stakerInfo[i], {"neighboring_holder_staked_address": `${stakerInfo[i].neighboring_holder_staked_address}`});
+                        Object.assign(stakerInfo[i], {"ratio": `${ratio}%`});
+                    }
+                
+                    this.logger.log(`tonData ${JSON.stringify(resData[idx])}`);
+                    const id = resData[idx].id.replace(/[^a-zA-Z0-9._@-]/g, 'd');
+                    
+
+
+                    res = stakerInfo     
+                            .map(item => {
+                            let amount = 0;
+                            let krw = 0;
+
+                            const subIdx = resData[idx].purchase_sub_idx;
+                            
+                            if(partnerIdx === 2 || partnerIdx === 3) {
+                                amount = this.appService.roundTo(miniRoyalty * (Number(item.ratio.replace('%','')/100)), 18);
+                                krw = this.appService.roundTo((miniRoyalty * hanKRW) * Number(item.ratio.replace('%','')/100), 2);
+                            }
+                            console.log("subIdx :: ", subIdx);
+                            return {
+                                buyer_id: id,
+                                idx: Number(item.idx),
+                                purchase_sub_idx: subIdx,
+                                owner_address: item.neighboring_holder_staked_address,
+                                amount: amount.toString(),
+                                krw: krw.toString()
+                        };
+                    }); 
+            
+                    console.log("result :: ", JSON.stringify(res, null, 2));
+
+
+                    if(partnerIdx === 2) {
+                        const response =axios.post(TON_PENDING_URL, {
+                            royaltyDataArray: res                
+                        }).then(response => {
+                            this.logger.log(`Response: ${JSON.stringify(response.data)}`);
+                        }).catch(error => {
+                            this.logger.error(`Error: ${error.message}`);
+                        });  
+                        this.logger.log(`ton response :: ${JSON.stringify(response)}`);
+
+                        await new Promise(resolve => setTimeout(resolve, 3000));
+                    } else if (partnerIdx === 3) {
+                        const response =axios.post(KAIA_PENDING_URL, {
+                            royaltyDataArray: res                
+                        }).then(response => {
+                            this.logger.log(`Response: ${JSON.stringify(response.data)}`);
+                        }).catch(error => {
+                            this.logger.error(`Error: ${error.message}`);
+                        });  
+                        this.logger.log(`kaia response :: ${JSON.stringify(response)}`);
+                    }
+                }
+            }
+        } catch (error) {
+            this.logger.log(error);
+        }
+    }
 }
