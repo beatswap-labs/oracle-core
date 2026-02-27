@@ -1,3 +1,15 @@
+type WebDramaInfo = 
+ record {
+   admin_id: text;
+   episode_id: text;
+   episode_member_id: text;
+   episode_summary: text;
+   episode_thumnail_s3: text;
+   episode_title: text;
+   idx: nat;
+   mv_s3_path: text;
+   see_min: nat;
+ };
 type VerificationUnlockCount = 
  record {
    idx: nat;
@@ -56,6 +68,16 @@ type MusicWorkInfo =
    verification_status: text;
    work_type: text;
  };
+type MusicVideoInfo = 
+ record {
+   group_name: text;
+   high_mv_file: text;
+   idx: nat;
+   lyricist: text;
+   song_file: text;
+   song_name: text;
+   song_thumnail: text;
+ };
 type MusicVerificationList = 
  record {
    idx: nat;
@@ -69,23 +91,32 @@ type GenreId =
    genre_name: text;
  };
 service : {
-  addDailyIcrcMinter: (text, text, nat64) -> (text);
-  addGenre: (text, nat, text) -> (text);
-  addMusicVerificationList: (text, nat, text, bool, text) -> ();
-  addMusicWorkInfo: (opt text, MusicWorkInfo) -> ();
-  addPartner: (text, nat, text) -> (text);
-  addRequesterId: (text, text, bool) -> (text);
-  deleteMusicWorkInfo: (opt text, nat) -> (text);
-  firstDataSet: (text) -> (text);
+  addDailyIcrcMinter: (owner: text, minted_at: text, minted_amount: nat64) ->
+   (text);
+  addGenre: (owner: text, genre_idx: nat, genre_name: text) -> (text);
+  addMusicVerificationList: (owner: text, idx_p: nat, requester_principal_p:
+   text, verification_status_p: bool, verification_status_updated_at_p:
+   text) -> ();
+  addMusicVideoInfo: (owner: opt text, info: MusicVideoInfo) -> (text);
+  addMusicWorkInfo: (owner: opt text, info: MusicWorkInfo) -> ();
+  addPartner: (owner: text, partner_idx_p: nat, partner_name_p: text) ->
+   (text);
+  addRequesterId: (requester_principal_p: text, requester_name_p: text,
+   can_approve_p: bool) -> (text);
+  addWebDramaInfo: (owner: opt text, info: WebDramaInfo) -> (text);
+  deleteMusicWorkInfo: (owner: opt text, idx: nat) -> (text);
+  firstDataSet: (owner: text) -> (text);
   getGenres: () -> (vec GenreId) query;
   getMusicContractAddress: () -> (text) query;
-  getMusicInfoByIdx: (nat) -> (opt MusicWorkInfoView) query;
-  getMusicInfoByPaykhanData: (text, text) -> (text);
+  getMusicInfoByIdx: (idx: nat) -> (opt MusicWorkInfoView) query;
+  getMusicInfoByPaykhanData: (owner: text, data: text) -> (text);
   getMusicVerificationLists: () -> (vec MusicVerificationList) query;
+  getMusicVideoByOwner: (owner: text) -> (vec MusicVideoInfo) query;
   getMusicWorkInfos: () -> (vec MusicWorkInfoView) query;
-  getMusicWorkInfosByGenre: (nat) -> (vec MusicWorkInfoView) query;
-  getMusicWorkInfosByGenreOwner: (nat, text) -> (vec MusicWorkInfo) query;
-  getMusicWorkInfosByOwner: (text) -> (vec MusicWorkInfo) query;
+  getMusicWorkInfosByGenre: (genre: nat) -> (vec MusicWorkInfoView) query;
+  getMusicWorkInfosByGenreOwner: (genre: nat, owner: text) ->
+   (vec MusicWorkInfo) query;
+  getMusicWorkInfosByOwner: (owner: text) -> (vec MusicWorkInfo) query;
   getPartners: () -> (vec Partner) query;
   getRWAContributorsCnt: () -> (nat) query;
   getRequesterIds: () ->
@@ -93,23 +124,27 @@ service : {
           can_approve: bool;
           requester_name: text;
         }) query;
-  getTotalVerificationUnlockCount: (nat) -> (nat) query;
+  getTotalVerificationUnlockCount: (partner_idx: nat) -> (nat) query;
   getTransactionsCnt: () -> (nat) query;
   getUnlockedAccumulated: () -> (nat64) query;
-  getVerificationUnlockCounts: (nat) -> (vec VerificationUnlockCount) query;
-  incrementMusicWorkInfoUnlockCount: (nat, text) -> (text);
-  incrementRWAContributorsCnt: (text) -> (nat);
-  incrementTransactionsCnt: (text) -> (nat);
-  incrementUnlockedAccumulated: (nat64, text) -> (nat64);
-  incrementVerificationUnlockCount: (nat, nat, text) -> (text);
-  setCanisterOwner: (text) -> (text);
-  updateCanisterOwner: (opt text, opt text) -> (text);
-  updateGenreName: (text, nat, text) -> (text);
-  updateMusicFilePathByOwner: (text, text) -> (text);
-  updateMusicWorkInfo: (opt text, MusicWorkInfo) -> (text);
-  updateOneMinPathByOwner: (text, text) -> (text);
-  updateRWAContributorsCnt: (text, nat) -> (text);
-  updateTransactionsCnt: (text, nat) -> (text);
-  updateUnlockedAccumulated: (text, nat64) -> (text);
+  getVerificationUnlockCounts: (partner_idx: nat) ->
+   (vec VerificationUnlockCount) query;
+  getWebDramaByOwner: (owner: text) -> (vec WebDramaInfo) query;
+  incrementMusicWorkInfoUnlockCount: (idx_p: nat, owner: text) -> (text);
+  incrementRWAContributorsCnt: (owner: text) -> (nat);
+  incrementTransactionsCnt: (owner: text) -> (nat);
+  incrementUnlockedAccumulated: (by: nat64, owner: text) -> (nat64);
+  incrementVerificationUnlockCount: (partner_idx: nat, idx_p: nat, owner:
+   text) -> (text);
+  setCanisterOwner: (newOwner: text) -> (text);
+  updateCanisterOwner: (base: opt text, newbase: opt text) -> (text);
+  updateGenreName: (owner: text, genre_idx_target: nat, new_name: text) ->
+   (text);
+  updateMusicFilePathByOwner: (owner: text, data: text) -> (text);
+  updateMusicWorkInfo: (owner: opt text, info: MusicWorkInfo) -> (text);
+  updateOneMinPathByOwner: (owner: text, data: text) -> (text);
+  updateRWAContributorsCnt: (owner: text, newCount: nat) -> (text);
+  updateTransactionsCnt: (owner: text, newCount: nat) -> (text);
+  updateUnlockedAccumulated: (owner: text, newCount: nat64) -> (text);
   whoami: () -> (principal) query;
 }

@@ -111,7 +111,6 @@ service : {
   getMusicInfoByIdx: (idx: nat) -> (opt MusicWorkInfoView) query;
   getMusicInfoByPaykhanData: (owner: text, data: text) -> (text);
   getMusicVerificationLists: () -> (vec MusicVerificationList) query;
-  getMusicVideoByOwner: (owner: text) -> (vec MusicVideoInfo) query;
   getMusicWorkInfos: () -> (vec MusicWorkInfoView) query;
   getMusicWorkInfosByGenre: (genre: nat) -> (vec MusicWorkInfoView) query;
   getMusicWorkInfosByGenreOwner: (genre: nat, owner: text) ->
@@ -129,7 +128,6 @@ service : {
   getUnlockedAccumulated: () -> (nat64) query;
   getVerificationUnlockCounts: (partner_idx: nat) ->
    (vec VerificationUnlockCount) query;
-  getWebDramaByOwner: (owner: text) -> (vec WebDramaInfo) query;
   incrementMusicWorkInfoUnlockCount: (idx_p: nat, owner: text) -> (text);
   incrementRWAContributorsCnt: (owner: text) -> (nat);
   incrementTransactionsCnt: (owner: text) -> (nat);

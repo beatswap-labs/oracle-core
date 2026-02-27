@@ -53,6 +53,28 @@ module {
         op_neighboring_token_address : Text;
     };
 
+    public type MusicVideoInfo ={
+        idx : Nat;
+        song_name : Text;
+        group_name : Text;
+        lyricist : Text;
+        song_thumnail : Text;
+        song_file : Text;
+        high_mv_file : Text;
+    };
+
+    public type WebDramaInfo ={
+        idx : Nat;
+        see_min : Nat;
+        episode_title : Text;
+        mv_s3_path : Text;
+        episode_summary : Text;
+        episode_id : Text;
+        episode_thumnail_s3 : Text;
+        admin_id : Text;
+        episode_member_id : Text;
+    };
+
     //genre
     public type GenreId={
         genre_idx : Nat;

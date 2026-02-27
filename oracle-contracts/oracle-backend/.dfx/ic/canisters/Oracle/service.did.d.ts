@@ -9,6 +9,15 @@ export interface MusicVerificationList {
   'verification_status_updated_at' : string,
   'requester_principal' : string,
 }
+export interface MusicVideoInfo {
+  'idx' : bigint,
+  'lyricist' : string,
+  'song_thumnail' : string,
+  'song_file' : string,
+  'song_name' : string,
+  'high_mv_file' : string,
+  'group_name' : string,
+}
 export interface MusicWorkInfo {
   'idx' : bigint,
   'musician' : string,
@@ -60,6 +69,17 @@ export interface VerificationUnlockCount {
   'partner_idx' : bigint,
   'unlock_count' : bigint,
 }
+export interface WebDramaInfo {
+  'idx' : bigint,
+  'episode_summary' : string,
+  'episode_member_id' : string,
+  'admin_id' : string,
+  'mv_s3_path' : string,
+  'episode_thumnail_s3' : string,
+  'see_min' : bigint,
+  'episode_id' : string,
+  'episode_title' : string,
+}
 export interface _SERVICE {
   'addDailyIcrcMinter' : ActorMethod<[string, string, bigint], string>,
   'addGenre' : ActorMethod<[string, bigint, string], string>,
@@ -67,9 +87,11 @@ export interface _SERVICE {
     [string, bigint, string, boolean, string],
     undefined
   >,
+  'addMusicVideoInfo' : ActorMethod<[[] | [string], MusicVideoInfo], string>,
   'addMusicWorkInfo' : ActorMethod<[[] | [string], MusicWorkInfo], undefined>,
   'addPartner' : ActorMethod<[string, bigint, string], string>,
   'addRequesterId' : ActorMethod<[string, string, boolean], string>,
+  'addWebDramaInfo' : ActorMethod<[[] | [string], WebDramaInfo], string>,
   'deleteMusicWorkInfo' : ActorMethod<[[] | [string], bigint], string>,
   'firstDataSet' : ActorMethod<[string], string>,
   'getGenres' : ActorMethod<[], Array<GenreId>>,
@@ -77,6 +99,7 @@ export interface _SERVICE {
   'getMusicInfoByIdx' : ActorMethod<[bigint], [] | [MusicWorkInfoView]>,
   'getMusicInfoByPaykhanData' : ActorMethod<[string, string], string>,
   'getMusicVerificationLists' : ActorMethod<[], Array<MusicVerificationList>>,
+  'getMusicVideoByOwner' : ActorMethod<[string], Array<MusicVideoInfo>>,
   'getMusicWorkInfos' : ActorMethod<[], Array<MusicWorkInfoView>>,
   'getMusicWorkInfosByGenre' : ActorMethod<[bigint], Array<MusicWorkInfoView>>,
   'getMusicWorkInfosByGenreOwner' : ActorMethod<
@@ -97,6 +120,7 @@ export interface _SERVICE {
     [bigint],
     Array<VerificationUnlockCount>
   >,
+  'getWebDramaByOwner' : ActorMethod<[string], Array<WebDramaInfo>>,
   'incrementMusicWorkInfoUnlockCount' : ActorMethod<[bigint, string], string>,
   'incrementRWAContributorsCnt' : ActorMethod<[string], bigint>,
   'incrementTransactionsCnt' : ActorMethod<[string], bigint>,

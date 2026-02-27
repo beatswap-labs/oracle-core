@@ -1,4 +1,13 @@
 export const idlFactory = ({ IDL }) => {
+  const MusicVideoInfo = IDL.Record({
+    'idx' : IDL.Nat,
+    'lyricist' : IDL.Text,
+    'song_thumnail' : IDL.Text,
+    'song_file' : IDL.Text,
+    'song_name' : IDL.Text,
+    'high_mv_file' : IDL.Text,
+    'group_name' : IDL.Text,
+  });
   const MusicWorkInfo = IDL.Record({
     'idx' : IDL.Nat,
     'musician' : IDL.Text,
@@ -22,6 +31,17 @@ export const idlFactory = ({ IDL }) => {
     'arranger' : IDL.Text,
     'requester_principal' : IDL.Text,
     'unlock_total_count' : IDL.Nat,
+  });
+  const WebDramaInfo = IDL.Record({
+    'idx' : IDL.Nat,
+    'episode_summary' : IDL.Text,
+    'episode_member_id' : IDL.Text,
+    'admin_id' : IDL.Text,
+    'mv_s3_path' : IDL.Text,
+    'episode_thumnail_s3' : IDL.Text,
+    'see_min' : IDL.Nat,
+    'episode_id' : IDL.Text,
+    'episode_title' : IDL.Text,
   });
   const GenreId = IDL.Record({
     'genre_name' : IDL.Text,
@@ -75,9 +95,19 @@ export const idlFactory = ({ IDL }) => {
         [],
         [],
       ),
+    'addMusicVideoInfo' : IDL.Func(
+        [IDL.Opt(IDL.Text), MusicVideoInfo],
+        [IDL.Text],
+        [],
+      ),
     'addMusicWorkInfo' : IDL.Func([IDL.Opt(IDL.Text), MusicWorkInfo], [], []),
     'addPartner' : IDL.Func([IDL.Text, IDL.Nat, IDL.Text], [IDL.Text], []),
     'addRequesterId' : IDL.Func([IDL.Text, IDL.Text, IDL.Bool], [IDL.Text], []),
+    'addWebDramaInfo' : IDL.Func(
+        [IDL.Opt(IDL.Text), WebDramaInfo],
+        [IDL.Text],
+        [],
+      ),
     'deleteMusicWorkInfo' : IDL.Func(
         [IDL.Opt(IDL.Text), IDL.Nat],
         [IDL.Text],
@@ -99,6 +129,11 @@ export const idlFactory = ({ IDL }) => {
     'getMusicVerificationLists' : IDL.Func(
         [],
         [IDL.Vec(MusicVerificationList)],
+        ['query'],
+      ),
+    'getMusicVideoByOwner' : IDL.Func(
+        [IDL.Text],
+        [IDL.Vec(MusicVideoInfo)],
         ['query'],
       ),
     'getMusicWorkInfos' : IDL.Func([], [IDL.Vec(MusicWorkInfoView)], ['query']),
@@ -141,6 +176,11 @@ export const idlFactory = ({ IDL }) => {
     'getVerificationUnlockCounts' : IDL.Func(
         [IDL.Nat],
         [IDL.Vec(VerificationUnlockCount)],
+        ['query'],
+      ),
+    'getWebDramaByOwner' : IDL.Func(
+        [IDL.Text],
+        [IDL.Vec(WebDramaInfo)],
         ['query'],
       ),
     'incrementMusicWorkInfoUnlockCount' : IDL.Func(

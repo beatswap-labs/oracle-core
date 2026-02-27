@@ -119,6 +119,8 @@ persistent actor Oracle {
 
   //music info data
   var MusicWorkInfoData : List.List<T.MusicWorkInfo> = List.nil();
+  var MusicVideoInfoData : List.List<T.MusicVideoInfo> = List.nil();
+  var WebDramaInfoData : List.List<T.WebDramaInfo> = List.nil();
 
 
   //music unlock increase
@@ -165,6 +167,52 @@ persistent actor Oracle {
 
   }
   };
+
+  public func addMusicVideoInfo(owner : ?Text, info : T.MusicVideoInfo) : async Text {
+    if (canister_owner != owner) {
+      return "Unauthorized access attempt";
+    };
+
+    var replaced = false;
+    MusicVideoInfoData := List.map(MusicVideoInfoData, func (mv : T.MusicVideoInfo) : T.MusicVideoInfo {
+      if (mv.idx == info.idx) {
+        replaced := true;
+        info
+      } else {
+        mv
+      }
+    });
+
+    if (not replaced) {
+      MusicVideoInfoData := List.push(info, MusicVideoInfoData);
+      return "Music video info added";
+    } else {
+      return "Music video info updated";
+    }
+  };
+
+  public func addWebDramaInfo(owner : ?Text, info : T.WebDramaInfo) : async Text {
+    if (canister_owner != owner) {
+      return "Unauthorized access attempt";
+    };
+
+    var replaced = false;
+    WebDramaInfoData := List.map(WebDramaInfoData, func (wd : T.WebDramaInfo) : T.WebDramaInfo {
+      if (wd.idx == info.idx) {
+        replaced := true;
+        info
+      } else {
+        wd
+      }
+    });
+
+    if (not replaced) {
+      WebDramaInfoData := List.push(info, WebDramaInfoData);
+      return "Web drama info added";
+    } else {
+      return "Web drama info updated";
+    }
+  };
   
 
 
@@ -207,6 +255,24 @@ persistent actor Oracle {
       mw.verification_status == "show"
     });
     return List.toArray(filtered);
+  };
+
+  public query func getMusicVideoByOwner(owner : Text) : async [T.MusicVideoInfo] {
+    //check owner
+    if (canister_owner == ?owner) {
+    return List.toArray(MusicVideoInfoData);
+    }else{
+      return [];
+    }
+  };
+
+  public query func getWebDramaByOwner(owner : Text) : async [T.WebDramaInfo] {
+    //check owner
+    if (canister_owner == ?owner) {
+    return List.toArray(WebDramaInfoData);
+    }else{
+      return [];
+    }
   };
 
    public query func getMusicWorkInfosByOwner(owner : Text) : async [T.MusicWorkInfo] {
