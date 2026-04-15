@@ -6,6 +6,7 @@ import { AppService } from '../app.service';
 import * as httpMocks from 'node-mocks-http';
 import { EventEmitter } from 'stream';
 import axios from 'axios';
+import { fetchWithRetry } from '../utils/fetch-retry';
 
 
 
@@ -128,7 +129,14 @@ export class BatchService {
         const url = paykhanSongUrl!+lastMusicIdx;
        
         try {
-            const response = await fetch(url);
+            const response = await fetchWithRetry(url, undefined, {
+                retries: 3,
+                delayMs: 1000,
+                onRetry: (error, attempt, maxRetries) => {
+                    const code = (error as any)?.code ?? (error as any)?.errno ?? 'UNKNOWN';
+                    this.logger.warn(`fetch retry ${attempt}/${maxRetries} for ${url} failed with ${code}`);
+                }
+            });
             const data = (await response.text()).replaceAll('hanshop.s3.ap-northeast-2.amazonaws.com','resource.beatswap.io');
             if(data == '[]') {
                 return {response: 'Nothing to update'};

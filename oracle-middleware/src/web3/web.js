@@ -2,11 +2,11 @@ import Web3, { utils } from "web3";
 import { Agent } from "http";
 import Web3HttpProvider from "web3-providers-http";
 import { Router } from "express";
+import * as dotenv from 'dotenv';
+dotenv.config();
 var router = Router();
 
-const OPTIMISM_RPC_URL = "https://opt-mainnet.g.alchemy.com/v2/-KAMI6ilHMNuwBx-L6rIT";
-
-const SCAN_HANPRICE_URL = "https://scan.khans.io/trade/hanAveragePrice"
+const OPTIMISM_RPC_URL = process.env.OPTIMISM_RPC_URL;
 
 const MusikhanStakingABI = [
   {
@@ -697,7 +697,6 @@ router.get("/getStaker", async (req, res) => {
   const contractAddress = '0x5AD7e2BF0204C066ac9C3DD7028cE30B41D12682';
   const contract = new oweb3.eth.Contract(MusikhanStakingABI, contractAddress);
 
-  //파라메터 받기
   let contract_address = req.query.contract_address;
 
   const stakingUserList = await contract.methods.getStakerAddressList(contract_address).call();
@@ -729,7 +728,6 @@ router.get("/getStaker", async (req, res) => {
           }
         }
       } else {
-        //데이터가 없으니 admin2 계정에 2000개로 입력해라
         let returnData = {};
   
         returnData.songIdx = 1;

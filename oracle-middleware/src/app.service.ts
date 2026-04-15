@@ -13,12 +13,14 @@ import { CanisterService } from './service/canister.service';
 import * as util from 'util';
 import { ethers } from 'ethers';
 import { WorkerService } from './service/worker.service';
-
-
+import { userDBService } from './workers/db.factory';
+import * as FormData from 'form-data';
+import { fetchWithRetry } from './utils/fetch-retry';
+import { config } from 'process';
 
 const web3Router = require('./web3/web.js').default;
 
-const gnere = {
+const genre = {
             1:'K-Pop',
             2:'R&B',
             3:'Trot',
@@ -78,7 +80,15 @@ interface rightHolderReq {
 @Injectable()
 export class AppService {
 
-    constructor(private configService: ConfigService, private telegramService: TelegramService, private canisterService: CanisterService, private workerService: WorkerService) {}
+    private db: any;
+
+    constructor(private configService: ConfigService, private telegramService: TelegramService, private canisterService: CanisterService, private workerService: WorkerService) {
+        this.init();
+    }
+
+    private async init() {
+      this.db = await userDBService();
+    }   
     private readonly logger = new Logger(AppService.name);
     
 
@@ -108,11 +118,131 @@ export class AppService {
     private lastFetchMusicInfoTime = 0;
     private lastFetchMusicInfoGenreTime = 0;
 
-    private readonly cacheDurationTotal = 4000; // 4sec
+    private readonly cacheDurationTotal = 8 * 1000; // 8sec
     private readonly cacheDurationMusicInfo = 10 * 1000; // 10sec
     private readonly cacheDuration = 5 * 60 * 1000; // 5min
     private readonly cacheDurationGraph = 3 * 60 * 60 * 1000; // 3hour
     private readonly cacheDurationUSD = 24 * 60 * 60 * 1000; // 1day
+
+    async getStaker(contractAddress: string): Promise<any> {
+        const req = httpMocks.createRequest({
+            method: 'GET',
+            url: '/getStaker',
+            query: { contract_address: contractAddress },
+        });
+        const res = httpMocks.createResponse({ eventEmitter: EventEmitter });
+        await new Promise((resolve, reject) => {
+            res.on('end', resolve);
+            res.on('finish', resolve);
+            res.on('error', reject);
+
+            web3Router.handle(req, res, (err:any) => {
+                if(err) return reject(err);
+
+                setImmediate(() => {
+                if(!res.writableEnded) {
+                    reject(new Error('Router not Response'));
+                }
+                })
+            })
+        });
+        const data = res._getData();
+
+        return data;
+    }
+
+
+    async addPaykhanMusicWorkInfo(idx: number): Promise<any> {
+        const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
+        const paykhanSongUrl = this.configService.get<string>('PAYKHAN_SONG_URL');
+
+        if(!OWNER_KEY || !paykhanSongUrl){
+            this.logger.error('Cannot find Config SET');
+            throw new Error('Cannot find Config SET');
+        }
+
+        const lastMusicIdx = idx-1;
+        this.logger.log(`last idx ::: ${lastMusicIdx}`);
+
+        const url = paykhanSongUrl!+lastMusicIdx;
+       
+        try {
+            const response = await fetchWithRetry(url, undefined, {
+                retries: 3,
+                delayMs: 1000,
+                onRetry: (error, attempt, maxRetries) => {
+                    const code = (error as any)?.code ?? (error as any)?.errno ?? 'UNKNOWN';
+                    this.logger.warn(`fetch retry ${attempt}/${maxRetries} for ${url} failed with ${code}`);
+                }
+            });
+            const data = (await response.text()).replaceAll('hanshop.s3.ap-northeast-2.amazonaws.com','resource.beatswap.io');
+            const parsed = JSON.parse(data);
+            if(parsed == '[]') {
+                return {response: 'Nothing to update'};
+            }
+            this.logger.log(`req data ::: ${JSON.stringify(parsed)}`);
+            
+            await this.canisterService.oracleActor.getMusicInfoByPaykhanData(OWNER_KEY, JSON.stringify([parsed[0]]));
+
+            this.logger.log(`added idx ::: ${parsed[0].idx}`);
+            await this.addRightsHolder(Number(parsed[0].idx));
+            
+        } catch(error) {
+            this.logger.log(error);
+        }
+        return { success: true };
+    }
+
+    async addMusicVideoData(idx: number): Promise<any> {
+        const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
+        const paykhanSongUrl = "https://paykhan.org/nftAudio/musicVideoInfo";
+
+        if(!OWNER_KEY || !paykhanSongUrl){
+            this.logger.error('Cannot find Config SET');
+            throw new Error('Cannot find Config SET');
+        }
+       
+        try {
+            const formData = new FormData();
+                formData.append('idx', idx);
+
+            const response = await axios.post(
+            paykhanSongUrl,
+            formData,
+            {
+                headers: formData.getHeaders()
+            }
+            );
+
+            this.logger.log(`response ${JSON.stringify(response.data)}`);
+            const source = Array.isArray(response.data) ? response.data[0] : response.data;
+
+            if(!source) {
+                return {response: 'Nothing to update'};
+            }
+
+            const musicVideoInfo = {
+                idx: Number(source.idx),
+                lyricist: String(source.lyricist ?? ''),
+                song_thumnail: String(source.song_thumnail ?? ''),
+                song_file: String(source.song_file ?? ''),
+                song_name: String(source.song_name ?? ''),
+                high_mv_file: String(source.high_mv_file ?? ''),
+                group_name: String(source.group_name ?? '')
+            };
+
+            const OWNER = [OWNER_KEY];
+            this.logger.log(`req data ::: ${JSON.stringify(musicVideoInfo)}`);
+            await this.canisterService.oracleActor.addMusicVideoInfo(OWNER, musicVideoInfo);
+            
+        } catch(error) {
+            this.logger.log(error);
+        }
+        return { success: true };
+    }
+
+    
+
 
     async addRightsHolder(idx: number) {
         const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
@@ -176,12 +306,10 @@ export class AppService {
         const musicInfo = await this.canisterService.oracleActor.getMusicWorkInfos();
         const now = moment().tz('Asia/Seoul');
 
-        const verificationDate = now.clone().add(1, 'day');
-
         for(let i = 0; i < musicInfo.length; i++) {
             this.logger.log(`musicInfo length ${musicInfo[i].idx}`);
             const data = await this.requestHolderRetry(web3Router, musicInfo, i);
-            const res = await this.canisterService.holderActor.getDailyRightsHoldersByYMD(musicInfo[i].op_neighboring_token_address, verificationDate.format('YYYYMMDD'));
+            const res = await this.canisterService.holderActor.getDailyRightsHoldersByYMD(musicInfo[i].op_neighboring_token_address, now.format('YYYYMMDD'));
         
             this.logger.log(res);
             if (!data || res.length > 0) {
@@ -193,7 +321,7 @@ export class AppService {
             for(let j = 0; j < data.length; j++) {
                 
 
-                reqData.push({ neighboring_token_address: musicInfo[i].op_neighboring_token_address, neighboring_holder_staked_address: data[j].userMetaId, staked_amount: data[j].userStakingAmount.toString(), verification_date: verificationDate.format('YYYY-MM-DD'), neighboring_holder_staked_mainnet: 'Optimism'})
+                reqData.push({ neighboring_token_address: musicInfo[i].op_neighboring_token_address, neighboring_holder_staked_address: data[j].userMetaId, staked_amount: data[j].userStakingAmount.toString(), verification_date: now.format('YYYY-MM-DD'), neighboring_holder_staked_mainnet: 'Optimism'})
             }
             
             try {
@@ -339,7 +467,7 @@ export class AppService {
 
     async getMusicWorkInfosByOwner(): Promise<any> {
         const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
-
+        
         if(!OWNER_KEY){
             this.logger.error('Cannot find OWNER_KEY');
             throw new Error('Cannot find OWNER_KEY');
@@ -351,8 +479,8 @@ export class AppService {
             const musicInfo = await this.canisterService.oracleActor.getMusicWorkInfosByOwner(OWNER_KEY);
             musicInfo.forEach(item => {
                     const key = Number(item.genre_idx);
-                    if (gnere[key]) {
-                        item.genre_idx = gnere[key];
+                    if (genre[key]) {
+                        item.genre_idx = genre[key];
                     } else {
                         item.genre_idx = 'Unknown';
                     }
@@ -366,6 +494,21 @@ export class AppService {
         }
 
         return this.cachedMusicInfo;
+    }
+
+    async getArtistMusicInfo(nickName: string): Promise<any> {
+        const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
+
+        if(!OWNER_KEY){
+            this.logger.error('Cannot find OWNER_KEY');
+            throw new Error('Cannot find OWNER_KEY');
+        }
+        
+        const res = await this.canisterService.oracleActor.getMusicWorkInfosByOwner(OWNER_KEY);
+
+        const found = res.filter(item => item.artist?.includes(nickName));
+
+        return found.map(({ music_file_path, ...rest }) => rest);
     }
 
     async getMusicWorkInfosTotalCount(): Promise<any> {
@@ -402,7 +545,7 @@ export class AppService {
             ratio: string;  
         };
 
-        const now = moment().utc();
+        const now = moment().tz('Asia/Seoul');
         const date = now.format('YYYYMMDD');
 
         const res = await this.canisterService.holderActor.getDailyRightsHoldersByYMD(address, date);
@@ -448,7 +591,7 @@ export class AppService {
     }
 
     async getGenres(): Promise<any> {
-        const res = Object.values(gnere);
+        const res = Object.values(genre);
         return res;
     }
 
@@ -734,24 +877,34 @@ export class AppService {
                 const transaction = await this.canisterService.tokenActor.get_transactions(GetTransactionReq);
                 transactionList = this.parseTransactions(transaction.transactions, type, start);
             } else {
-                const transactionArc = await this.canisterService.tokenArcActor.get_transactions(GetTransactionReq);
-                transactionList = this.parseTransactions(transactionArc.transactions, type, start);
+                const archiveInfo = await this.canisterService.tokenActor.archives();
+                this.logger.log(`>>>>>>>>>>>>>>>> start ${archiveInfo[0].block_range_start} end ${archiveInfo[0].block_range_end}`);
+                for (const archive of archiveInfo) { 
+                    this.logger.log(`>>>>>>>>>>>>>>>> start fetching archive for idx ${archive.canister_id}`);
+                    if(start > archive.block_range_end || start < archive.block_range_start) {
+                        this.logger.log(`archive skip idx ${start} canister_id ${archive.canister_id}`);
+                        continue;
+                    }
+
+                    const transactionArc = await this.canisterService.createArchiveActor(archive.canister_id).get_transactions(GetTransactionReq);
+                    transactionList = this.parseTransactions(transactionArc.transactions, type, start);
+                };
             }
             
             
-            // 2. idx desc
-            const sorted = [...transactionList].sort((a, b) => Number(b.index) - Number(a.index));
-    
-            this.logger.log(`totalTransaction: ${length.log_length}`);
-            this.lastFetchScanTime = now;
-            const result = {    data: sorted,
-                        totalPage: totalPages,
-                        currentPage: Number(page),
-                        totalTransaction: total
-            };
-            
-            this.cachedScan = result;
-        }
+                // 2. idx desc
+                const sorted = [...transactionList].sort((a, b) => Number(b.index) - Number(a.index));
+        
+                this.logger.log(`totalTransaction: ${length.log_length}`);
+                this.lastFetchScanTime = now;
+                const result = {    data: sorted,
+                            totalPage: totalPages,
+                            currentPage: Number(page),
+                            totalTransaction: total
+                };
+                
+                this.cachedScan = result;
+            }
 
         return this.cachedScan;
     }
@@ -777,11 +930,26 @@ export class AppService {
             const transaction = await this.canisterService.tokenActor.get_transactions(GetTransactionReq);
             transactionList = this.parseTransactions(transaction.transactions, type, idx);
         } else {
-            const transactionArc = await this.canisterService.tokenArcActor.get_transactions(GetTransactionReq);
-            transactionList = this.parseTransactions(transactionArc.transactions, type, idx);
+            const archiveInfo = await this.canisterService.tokenActor.archives();
+            this.logger.log(`>>>>>>>>>>>>>>>> start ${archiveInfo[0].block_range_start} end ${archiveInfo[0].block_range_end}`);
+            for (const archive of archiveInfo) { 
+                this.logger.log(`>>>>>>>>>>>>>>>> start fetching archive for idx ${archive.canister_id}`);
+                const GetTransactionReq = {
+                    start: idx,
+                    length: 1,
+                };
+                if(idx > archive.block_range_end || idx < archive.block_range_start) {
+                    this.logger.log(`archive skip idx ${idx} canister_id ${archive.canister_id}`);
+                    continue;
+                }
+
+                const transactionArc = await this.canisterService.createArchiveActor(archive.canister_id).get_transactions(GetTransactionReq);
+                transactionList = this.parseTransactions(transactionArc.transactions, type, idx);
+            };
+            
         }
         const result = { data: transactionList };
-
+        
         return result;
     }
 
@@ -804,15 +972,19 @@ export class AppService {
 
 
     async getTotalUnlockCount(): Promise<number> {
-        const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
 
-        if(!OWNER_KEY){
-            this.logger.error('Cannot find OWNER_KEY');
-            throw new Error('Cannot find OWNER_KEY');
+        const now = Date.now();
+        if (!this.cachedCntTotal || now - this.lastFetchTotalTime > this.cacheDurationTotal) {
+            const unlockCnt = await this.db.iplMintHistoryRepo
+                                                .createQueryBuilder('iplhist')
+                                                .where('iplhist.reward_type = :rewardType', { rewardType: 'UnlockReward' })
+                                                .getCount();
+            this.lastFetchTotalTime = now;
+
+            this.cachedCntTotal = unlockCnt;
         }
-        this.updateTotal(OWNER_KEY);
-        
-        return await this.canisterService.oracleActor.getUnlockedAccumulated();
+
+        return this.cachedCntTotal;
     }
 
     async getTotalVerificationUnlockCount(partnerIdx: number): Promise<number> {
@@ -840,8 +1012,9 @@ export class AppService {
     }
 
 
-    async updateMusicWorkInfo(idxList: number[], unlockCountList: number[]): Promise<any> {
+    async updateMusicWorkInfo(idxList: number[]): Promise<any> {
         const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
+        const paykhanSongUrl = this.configService.get<string>('PAYKHAN_SONG_URL');
 
         
         if(!OWNER_KEY){
@@ -849,47 +1022,47 @@ export class AppService {
             throw new Error('Cannot find OWNER_KEY');
         }
         const musicInfo = await this.canisterService.oracleActor.getMusicWorkInfosByOwner(OWNER_KEY);
-
+        
         const OWNER = [OWNER_KEY];
-
+        
         for (let i = 0; i < idxList.length; i++) {
-        const idx = idxList[i];
-        const unlockCount = unlockCountList[i];
-
-        const item = musicInfo.find(mi => Number(mi.idx) === idx);
-
-        if (!item) {
-            this.logger.warn(`Music info not found for idx: ${idx}`);
-            continue;
+            const idx = idxList[i];
+            const item = musicInfo.find(mi => Number(mi.idx) === idx);
+            
+            if (!item) {
+                this.logger.warn(`Music info not found for idx: ${idx}`);
+                continue;
+            }
+            const paykhanInfo = await axios.get(`${paykhanSongUrl}${Number(item.idx)-1}`);
+            
+            console.log(paykhanInfo.data[0].song_thumbnail);
+            const updateBody = {
+                idx: item.idx,
+                musician: item.musician,
+                title: item.title,
+                registration_date: item.registration_date,
+                lyricist: item.lyricist,
+                record_label: item.record_label,
+                work_type: item.work_type,
+                release_date: item.release_date,
+                music_publisher: item.music_publisher,
+                song_thumbnail: paykhanInfo.data[0].song_thumbnail.replace('hanshop.s3.ap-northeast-2.amazonaws.com','resource.beatswap.io'),
+                genre_idx: item.genre_idx,
+                music_file_path: item.music_file_path.replace('hanshop.s3.ap-northeast-2.amazonaws.com','resource.beatswap.io'),
+                op_neighboring_token_address: item.op_neighboring_token_address,
+                one_min_path: item.one_min_path.replace('hanshop.s3.ap-northeast-2.amazonaws.com','resource.beatswap.io'),
+                verification_status: item.verification_status,
+                composer: item.composer,
+                artist: item.artist,
+                icp_neighboring_token_address: item.icp_neighboring_token_address,
+                album_idx: item.album_idx,
+                arranger: item.arranger,
+                requester_principal: item.requester_principal,
+                unlock_total_count: item.unlock_total_count
+            }
+            this.logger.log("updateBody", updateBody);
+            await this.canisterService.oracleActor.updateMusicWorkInfo(OWNER, updateBody);
         }
-
-        const updateBody = {
-            idx: item.idx,
-            musician: item.musician,
-            title: item.title,
-            registration_date: item.registration_date,
-            lyricist: item.lyricist,
-            record_label: item.record_label,
-            work_type: item.work_type,
-            release_date: item.release_date,
-            music_publisher: item.music_publisher,
-            song_thumbnail: item.song_thumbnail.replace('hanshop.s3.ap-northeast-2.amazonaws.com','resource.beatswap.io'),
-            genre_idx: item.genre_idx,
-            music_file_path: item.music_file_path.replace('hanshop.s3.ap-northeast-2.amazonaws.com','resource.beatswap.io'),
-            op_neighboring_token_address: item.op_neighboring_token_address,
-            one_min_path: item.one_min_path.replace('hanshop.s3.ap-northeast-2.amazonaws.com','resource.beatswap.io'),
-            verification_status: item.verification_status,
-            composer: item.composer,
-            artist: item.artist,
-            icp_neighboring_token_address: item.icp_neighboring_token_address,
-            album_idx: item.album_idx,
-            arranger: item.arranger,
-            requester_principal: item.requester_principal,
-            unlock_total_count: item.unlock_total_count
-        }
-        this.logger.log("updateBody", updateBody);
-        await this.canisterService.oracleActor.updateMusicWorkInfo(OWNER, updateBody);
-    }
 
         // await this.oracleActor.updateMusicWorkInfo(OWNER, updateBody);
         return {success: true};
@@ -1092,7 +1265,7 @@ export class AppService {
             }).then(response => {
                 this.logger.log(`Response: ${JSON.stringify(response.data)}`);
             }).catch(error => {
-                this.logger.error(`Error: ${error.message}`);
+                this.logger.log(`Error: ${error.message}`);
             });  
             this.logger.log(`ton response :: ${JSON.stringify(response)}`);
         } else if (partnerIdx === 3) {
@@ -1101,7 +1274,7 @@ export class AppService {
             }).then(response => {
                 this.logger.log(`Response: ${JSON.stringify(response.data)}`);
             }).catch(error => {
-                this.logger.error(`Error: ${error.message}`);
+                this.logger.log(`Error: ${error.message}`);
             });  
             this.logger.log(`kaia response :: ${JSON.stringify(response)}`);
         }
@@ -1122,9 +1295,10 @@ export class AppService {
         
         const now = moment().utc();
 
-        // this.sendUnlockListForOra(idxList, principal, OWNER_KEY);
+        this.sendUnlockListForOra(idxList, principal, OWNER_KEY);
 
         const songUsdtPrice = 0.08;
+        const exchangeUSD = await this.getExchangeUSD();
         const songPrice = 70;
 
         const list = await this.canisterService.oracleActor.getMusicContractAddress();
@@ -1154,44 +1328,42 @@ export class AppService {
             res = stakerInfo     
             .map(async (item) => {
                 const usdtAmount = songUsdtPrice * (Number(item.ratio.replace('%','')/100));
+                const krw = this.roundTo(usdtAmount * exchangeUSD,18);
                 const iplAmount = this.roundTo(songPrice * (Number(item.ratio.replace('%','')/100)), 0);
-                
                 const weiAmount = ethers.parseEther(usdtAmount.toString());
                 
-                const userInfo = await this.workerService.getPrincipalById(6, item.neighboring_holder_staked_address);
-                this.logger.log(`>>>> ${iplAmount} >>> ${userInfo[0].principal}`)
-                this.workerService.mintTokenForOracle(userInfo[0].principal, 'royalty', iplAmount);
-
-                    return {
+                return {
                         idx: Number(item.idx),
                         owner_address: item.neighboring_holder_staked_address,
                         amount: weiAmount,
+                        krw: krw.toString(),
+                        iplAmount
                     };
                 }) 
         )).flat();
-    
 
-        return result;
-    }
+        setImmediate(async () => {
+            for (const r of result) {
+                try {
+                    const userInfo = await this.workerService.getPrincipalById(6, r.owner_address, 'getPrincipalById');
+                    this.logger.log(`>>>> ${r.iplAmount} >>> ${userInfo[0].principal}`);
+                    const principal = userInfo[0].principal;
+                    await this.workerService.mintTokenForOracle(
+                        principal,
+                        'Royalty',
+                        r.iplAmount
+                    );
+                } catch (e) {
+                    this.logger.error('mint failed', e);
+                }
+            }
+        });
 
-    async updateTotal(owner: string): Promise<number> {
-        const now = Date.now();
+        const responseResult = result.map(
+        ({ iplAmount, ...rest }) => rest
+        );
 
-        if (!this.cachedCntTotal || now - this.lastFetchTotalTime > this.cacheDurationTotal) {
-            const oracleRow = await this.canisterService.trafficActor.getOracleDataRowCnt();
-            const oracleRow2 = await this.canisterService.traffic2Actor.getOracleDataRowCnt2();
-
-            const total = oracleRow+oracleRow2;
-
-            this.logger.log(`oracleRow2: ${oracleRow2}`);
-            this.lastFetchTotalTime = now;
-            
-            const res = await this.canisterService.oracleActor.updateUnlockedAccumulated(owner, total);
-            this.cachedCntTotal = total;
-            this.logger.log(`unlockCount: ${oracleRow+oracleRow2} :: ${res}`);
-        }
-
-        return this.cachedCntTotal;
+        return responseResult;
     }
     
 
@@ -1210,9 +1382,10 @@ export class AppService {
 
     async getExchangeUSD(): Promise<number> {
         const now = Date.now();
+        const usdPriceUrl = this.configService.get<string>('USD_PRICE_URL') || '';
 
         if (!this.cachedPriceUSD || now - this.lastFetchTimeUSD > this.cacheDurationUSD) {
-            const res = await axios.get("https://search.naver.com/p/csearch/content/qapirender.nhn?key=calculator&pkid=141&q=%ED%99%98%EC%9C%A8&where=m&u1=keb&u6=standardUnit&u7=0&u3=USD&u4=KRW&u8=down&u2=1");
+            const res = await axios.get(usdPriceUrl);
             this.cachedPriceUSD = res.data.country[1].value.replace(',','');
             this.lastFetchTimeUSD = now;
             this.logger.log(`API → USD: ${this.cachedPriceUSD}`);
@@ -1259,80 +1432,16 @@ export class AppService {
 
             return stakerInfo;
         } catch (err) {
-            console.error("Error:", err);
-        }
-
-    }
-
-
-    async iplMint(id: string, partnerIdx: number, mintType: string, amount: number) {
-        const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
-
-        if(!OWNER_KEY){
-            this.logger.error('Cannot find OWNER_KEY');
-            throw new Error('Cannot find OWNER_KEY');
-        }
-
-        const now = moment().unix();
-        
-        try {
-
-            if(partnerIdx === 4) {
-                partnerIdx = 1; // ton
-                const resId = await axios.get(`https://paykhan.org/nftAudio/getPaykhanIdByAddress?address=${id}`);
-                id = resId.data.replace(/[^a-zA-Z0-9._@-]/g, 'd');
-                if(id === '' || id === null) {
-                    id = "kadmin2";
-                    this.logger.log(`No paykhan id replace admin -> ${id}`);
-                }
-                this.logger.log(`paykhan id ${id}`);
-            }
-
-            let principal: any;
-            if(partnerIdx === 2 || partnerIdx === 3){
-                principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
-                if(principal[0] === undefined){
-                    if(partnerIdx === 2) {
-                        principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(5, id);
-                    } else if ( partnerIdx === 3) {
-                        principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(6, id);
-                    }
-                }
-            }
-            
-            this.logger.log(principal[0].principle);
-            const encoder = new TextEncoder();
-            const nowMs = Date.now(); 
-
-            const nowNs = BigInt(nowMs) * 1_000_000n;
-            let memo: Uint8Array;
-            if(mintType === 'Royalty') {
-                memo = encoder.encode("RoyaltyReward");
-            } else if(mintType === 'Stream') {
-                memo = encoder.encode("StreamReward");
-            } else if(mintType === 'Unlock') {
-                memo = encoder.encode("UnlockReward");
-                if(amount === 70) amount = 100;
-            } else {
-                memo = encoder.encode("BonusReward");
-            }
-
-            const userPrincipal = Principal.fromText(principal[0].principle);
-
-            this.logger.log(`userPrincipal :: ${userPrincipal.toText()}`);
-            const stakerInfo = await this.canisterService.mintActor.mintForUser(OWNER_KEY, userPrincipal, Math.floor(amount), [memo], [nowNs])
-            
-            return stakerInfo;
-
-        } catch (err) {
-            console.error(`Error: id ::: ${id} ${err}`);
-            return { error: 'Minting failed' };
+            this.logger.log(`Error: ${err}`);
         }
 
     }
                             
     async updatePending(partnerIdx: number) {
-        const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
+        const TON_PURCHASE_URL = this.configService.get<string>('TON_PURCHASE_URL') || '';
+        const KAIA_PURCHASE_URL = this.configService.get<string>('KAIA_PURCHASE_URL') || '';
+        const TON_PENDING_URL = this.configService.get<string>('TON_PENDING_URL') || '';
+        const KAIA_PENDING_URL = this.configService.get<string>('KAIA_PENDING_URL') || '';
         let res;
         
         const now = moment().utc();
@@ -1348,14 +1457,14 @@ export class AppService {
             this.logger.log(`miniRoyalty :: ${miniRoyalty}`);
             let resData: any;
             if(partnerIdx === 2) {
-                resData = await axios.get('https://beatapi.khans.io/tune/purchase');
+                resData = await axios.get(TON_PURCHASE_URL);
                 resData = resData.data.data;
                 if(resData.data === '[]') {
                     this.logger.log('Nothing to update');
                     return {response: 'Nothing to update'};
                 }
             } else if(partnerIdx === 3){
-                resData = await axios.get('https://beatkpi.khans.io/api/tune/purchase');
+                resData = await axios.get(KAIA_PURCHASE_URL);
                 resData = resData.data.data;
                 if(resData.data === '[]') {
                     this.logger.log('Nothing to update');
@@ -1384,8 +1493,7 @@ export class AppService {
                     Object.assign(stakerInfo[i], {"neighboring_holder_staked_address": `${stakerInfo[i].neighboring_holder_staked_address}`});
                     Object.assign(stakerInfo[i], {"ratio": `${ratio}%`});
                 }
-                
-                const pending: any[] = [];
+            
                 this.logger.log(`tonData ${JSON.stringify(resData[idx])}`);
                 const id = resData[idx].id.replace(/[^a-zA-Z0-9._@-]/g, 'd');
                 
@@ -1417,23 +1525,23 @@ export class AppService {
 
 
                 if(partnerIdx === 2) {
-                    const response =axios.post('https://beatapi.khans.io/tune/distribute-royalty', {
+                    const response =axios.post(TON_PENDING_URL, {
                         royaltyDataArray: res                
                     }).then(response => {
                         this.logger.log(`Response: ${JSON.stringify(response.data)}`);
                     }).catch(error => {
-                        this.logger.error(`Error: ${error.message}`);
+                        this.logger.log(`Error: ${error.message}`);
                     });  
                     this.logger.log(`ton response :: ${JSON.stringify(response)}`);
 
                     await new Promise(resolve => setTimeout(resolve, 3000));
                 } else if (partnerIdx === 3) {
-                    const response =axios.post('https://beatkpi.khans.io/api/tune/distribute-royalty', {
+                    const response =axios.post(KAIA_PENDING_URL, {
                         royaltyDataArray: res                
                     }).then(response => {
                         this.logger.log(`Response: ${JSON.stringify(response.data)}`);
                     }).catch(error => {
-                        this.logger.error(`Error: ${error.message}`);
+                        this.logger.log(`Error: ${error.message}`);
                     });  
                     this.logger.log(`kaia response :: ${JSON.stringify(response)}`);
                 }
@@ -1450,156 +1558,238 @@ export class AppService {
         const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
 
             if(partnerIdx === 1) {
-                
-
                 let principal: any;
                 let amount: number = 0;
-                
                 const response = await axios.get(`https://paykhan.org/nftAudio/getUnlockTokenPaykhan?idx=${idx}`);
-                if(response.data === '[]') {
+                if(response.data.length === 0) {
                     this.logger.log('Nothing to update');
                     return {response: 'Nothing to update'};
                 }
+                // } catch (error) {
+                //     this.logger.error(`error in addIplMintbatch partnerIdx ${partnerIdx} idx ${idx} :: ${error}`);
+                //     return this.addIplMintbatch(1, idx);   
+                // }
+
                 this.logger.log(`response ${JSON.stringify(response.data)}`);
                 this.logger.log(`https://paykhan.org/nftAudio/getUnlockTokenPaykhan?idx=${idx}`);
                 for(let i = 0; i < 49; i ++) {
                     try{    
                         this.logger.log(`response idx ::: ${i} ${JSON.stringify(response.data[i])}`);
                         const id = response.data[i].id.replace(/[^a-zA-Z0-9._@-]/g, 'd');
-                        const principalData = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
-                        
-                        
-                        principal= principalData[0].principle;
-                        this.logger.log(`principal ::: ${principal}`);
-                        amount= Number(response.data[i].amount);
+                        const principalData = await this.workerService.getPrincipalById(partnerIdx, id, 'getPrincipalById');
                     
-                            try {
-                                const encoder = new TextEncoder();
-                                const nowMs = Date.now(); 
-        
-                                const nowNs = BigInt(nowMs) * 1_000_000n;
-                                let memo: Uint8Array;
-                                
-                                const userPrincipal = Principal.fromText(principal);
-                                const royaltyIdList = response.data[i].royalty_id.split(',');
-                                const royaltyList = response.data[i].royalty.split(',');
-                                
-                                memo = encoder.encode("UnlockReward");
-                                
-                                this.logger.log(`principal ${userPrincipal} amount ${amount}, memo ${memo}, nowNs ${nowNs}`);
-                                this.logger.log(`royaltyIdList ${royaltyIdList}`); 
-                                await Promise.race([
-                                    this.canisterService.mintActor.mintForUser(OWNER_KEY, userPrincipal, amount, [memo], [nowNs]),
-                                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout mintForUser')), 5000))]);
-                                for(let idx = 0; idx < royaltyIdList.length-1; idx++) {
-                                    try{
-                                        const royaltyId = royaltyIdList[idx].replace(/[^a-zA-Z0-9._@-]/g, 'd');
-                                        const royaltyAmount = Math.floor(amount*(Number(royaltyList[idx])/2000));
-                                        const royaltyprincipalData = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, royaltyId);
-                                        memo = encoder.encode("RoyaltyReward");
-                                        const royaltyprincipal = royaltyprincipalData[0].principle;
-                                        const royaltyUserPrincipal = Principal.fromText(royaltyprincipal);
-                                        const royaltyNowNs = BigInt(nowMs) * 1_000_000n;
-                                        this.logger.log(`Royalty principal ${royaltyUserPrincipal} amount ${royaltyAmount}, memo ${memo}, nowNs ${royaltyNowNs}`);
-                                        await Promise.race([
-                                            this.canisterService.mintActor.mintForUser(OWNER_KEY, royaltyUserPrincipal, royaltyAmount, [memo], [nowNs]),
+                    
+                    principal= principalData[0].principal;
+                    this.logger.log(`principal ::: ${principal}`);
+                    amount= Number(response.data[i].amount);
+                    
+                    try {
+                        const encoder = new TextEncoder();
+                        const nowMs = Date.now(); 
+                        
+                        const nowNs = BigInt(nowMs) * 1_000_000n;
+                            let memo: Uint8Array;
+                            
+                            const userPrincipal = Principal.fromText(principal);
+                            const royaltyIdList = response.data[i].royalty_id.split(',');
+                            const royaltyList = response.data[i].royalty.split(',');
+                            
+                            memo = encoder.encode("UnlockReward");
+                            
+                            this.logger.log(`principal ${userPrincipal} amount ${amount}, memo ${memo}, nowNs ${nowNs}`);
+                            this.logger.log(`royaltyIdList ${royaltyIdList}`); 
+                            await Promise.race([
+                                this.canisterService.mintActor.mintForUser(OWNER_KEY, userPrincipal, Math.floor(amount), [memo], [nowNs]),
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout mintForUser')), 5000))]);
+                            await new Promise(resolve => setTimeout(resolve, 30000));
+                            for(let idx = 0; idx < royaltyIdList.length-1; idx++) {
+                                try{
+                                    const royaltyId = royaltyIdList[idx].replace(/[^a-zA-Z0-9._@-]/g, 'd');
+                                    const royaltyAmount = Math.floor(amount*(Number(royaltyList[idx])/2000));
+                                    const royaltyprincipalData = await this.workerService.getPrincipalById(partnerIdx, royaltyId, 'getPrincipalById');
+                                    memo = encoder.encode("RoyaltyReward");
+                                    const royaltyprincipal = royaltyprincipalData[0].principal;
+                                    const royaltyUserPrincipal = Principal.fromText(royaltyprincipal);
+                                    const royaltyNowMs = Date.now(); 
+                                    const royaltyNowNs = BigInt(royaltyNowMs) * 1_000_000n;
+                                    this.logger.log(`Royalty principal ${royaltyUserPrincipal} amount ${royaltyAmount}, memo ${memo}, nowNs ${royaltyNowNs}`);
+                                    await Promise.race([
+                                        this.canisterService.mintActor.mintForUser(OWNER_KEY, royaltyUserPrincipal, Math.floor(royaltyAmount), [memo], [royaltyNowNs]),
                                         new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout mintForUser')), 5000))]);
-                                    } catch (error) {
-                                        this.logger.error(`mint: ${error} :: royaltyId ${royaltyIdList[idx]}`);
-                                        continue;
-                                    }
-                                    
+
+                                    await new Promise(resolve => setTimeout(resolve, 30000));
+                                } catch (error) {
+                                    this.logger.error(`mint: ${error} :: royaltyId ${royaltyIdList[idx]}`);
+                                    continue;
                                 }
-                            } catch (error) {
-                                this.logger.error(`mint:`, error);
-                            }
                                 
+                            }
+                        } catch (error) {
+                            this.logger.error(`mint:`, error);
+                        }
+                        
                     } catch(error) {
                         this.logger.error(`error partnerIdx ${partnerIdx} idx ${i}`);   
                         continue;
                     } 
-
-                    // this.logger.log(`partnerIdx ${res.data.partner_idx} idx ${res.data.idx}`);
                 }
-                // return true;
                 return this.addIplMintbatch(1, idx + 49);
-            } else if(partnerIdx === 2) {
-            
-                const max = await axios.get('https://mapi.khans.io/api/beatswap/ton/royalty-count');
-                    if (idx === Number(max.data.result)) {
-                        this.logger.log('Nothing to update');
-                        return { response: 'Nothing to update' };
-                    }
-                    let principal: any;
-                    let amount: number = 0;
-                    for(let i = idx; i < idx + 50; i ++) {
-                        if(i === 280342) {
-                            this.logger.log('Nothing to update');
-                            return { response: 'Nothing to update' };
-                        }
-
-                        try{    
-                            const response = await axios.get(`https://mapi.khans.io/api/beatswap/ton/royalty-history?index=${i}`);
-                            const responseData = response.data.result.result;
-                            this.logger.log(`response idx ::: ${i} ${JSON.stringify(response.data)}`);
-                            this.logger.log(`response result ::: ${JSON.stringify(response.data.result.result)}`);
-                            const id = responseData.id.replace(/[^a-zA-Z0-9._@-]/g, 'd');
-                            const principalData = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
-                            
-                            
-                            principal= principalData[0].principle;
-                            this.logger.log(`principal idx ::: ${principal}`);
-                            amount= 100;
-                    
-                            try {
-                                const encoder = new TextEncoder();
-                                const nowMs = Date.now(); 
-        
-                                const nowNs = BigInt(nowMs) * 1_000_000n;
-                                let memo: Uint8Array;
-                                
-                                const userPrincipal = Principal.fromText(principal);
-                                const royaltyIdList = responseData.owner_ids.split(',');
-                                const royaltyList = responseData.owner_rates.split(',');
-                                
-                                memo = encoder.encode("UnlockReward");
-                                
-                                this.logger.log(`principal ${userPrincipal} amount ${amount}, memo ${memo}, nowNs ${nowNs}`);
-                                this.logger.log(`royaltyIdList ${royaltyIdList}`); 
-                                await Promise.race([
-                                    this.canisterService.mintActor.mintForUser(OWNER_KEY, userPrincipal, amount, [memo], [nowNs]),
-                                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout mintForUser')), 5000))]);
-                                for(let j = 0; j < royaltyIdList.length; j++) {
-                                    try{
-                                        const royaltyId = royaltyIdList[j].replace(/[^a-zA-Z0-9._@-]/g, 'd');
-                                        const royaltyAmount = Math.floor((amount-30)*(Number(royaltyList[j])/2000));
-                                        const royaltyprincipalData = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(1, royaltyId);
-                                        memo = encoder.encode("RoyaltyReward");
-                                        const royaltyprincipal = royaltyprincipalData[0].principle;
-                                        const royaltyUserPrincipal = Principal.fromText(royaltyprincipal);
-                                        const royaltyNowNs = BigInt(nowMs) * 1_000_000n;
-                                        this.logger.log(`Royalty principal ${royaltyUserPrincipal} amount ${royaltyAmount}, memo ${memo}, nowNs ${royaltyNowNs}`);
-                                        await Promise.race([
-                                            this.canisterService.mintActor.mintForUser(OWNER_KEY, royaltyUserPrincipal, royaltyAmount, [memo], [nowNs]),
-                                        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout mintForUser')), 5000))]);
-                                    } catch (error) {
-                                        this.logger.error(`mint: ${error} :: royaltyId ${royaltyIdList[j]}`);
-                                        continue;
-                                    }
-                                    
-                                }
-                    
-                            } catch (error) {
-                                this.logger.error(`mint:`, error);
-                            }
-                        } catch(error) {
-                            this.logger.error(`error partnerIdx ${partnerIdx} idx ${i}`);   
-                            continue;
-                        }
-                    }
-                    return this.addIplMintbatch(2, idx + 50);
-        }
+            }
     }
+
+    async addIplMintbatchMV(type: string, idx: number = 0) {
+        const OWNER_KEY = this.configService.get<string>('OWNER_KEY');
+
+            if(type === 'MV') {
+                let principal: any;
+                let amount: number = 0;
+                const formData = new FormData();
+                formData.append('idx', idx);
+
+                const response = await axios.post(
+                'https://paykhan.org/nftAudio/musicVideoUnlockList',
+                formData,
+                {
+                    headers: formData.getHeaders()
+                }
+                );
+
+                this.logger.log(`response ${JSON.stringify(response.data)}`);
+                this.logger.log(`https://paykhan.org/nftAudio/musicVideoUnlockList idx ::: ${idx}`);
+                for(let i = 0; i < 100; i ++) {
+                    try{    
+                        this.logger.log(`response idx ::: ${i} ${JSON.stringify(response.data[i])}`);
+                        const id = response.data[i].m_id_id.replace(/[^a-zA-Z0-9._@-]/g, 'd');
+                        const principalData = await this.workerService.getPrincipalById(1, id, 'getPrincipalById');
+                    
+                    
+                    principal= principalData[0].principal;
+                    this.logger.log(`principal ::: ${principal}`);
+                    amount= Number(response.data[i].amount);
+                    
+                    try {
+                        const encoder = new TextEncoder();
+                        const nowMs = Date.now(); 
+                        
+                        const nowNs = BigInt(nowMs) * 1_000_000n;
+                            let memo: Uint8Array;
+                            
+                            const userPrincipal = Principal.fromText(principal);
+                            const royaltyIdList = response.data[i].m_idxs_id.split(',');
+                            const royaltyList = response.data[i].m_idxs_rate.split(',');
+                            
+                            memo = encoder.encode("UnlockReward");
+                            
+                            this.logger.log(`principal ${userPrincipal} amount ${amount}, memo ${memo}, nowNs ${nowNs}`);
+                            this.logger.log(`royaltyIdList ${royaltyIdList}`); 
+                            await Promise.race([
+                                this.canisterService.mintActor.mintForUser(OWNER_KEY, userPrincipal, Math.floor(amount), [memo], [nowNs]),
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout mintForUser')), 5000))]);
+                            await new Promise(resolve => setTimeout(resolve, 6000));
+                            for(let idx = 0; idx < royaltyIdList.length-1; idx++) {
+                                try{
+                                    const royaltyId = royaltyIdList[idx].replace(/[^a-zA-Z0-9._@-]/g, 'd');
+                                    const royaltyAmount = Math.floor(amount*(Number(royaltyList[idx])/100));
+                                    const royaltyprincipalData = await this.workerService.getPrincipalById(1, royaltyId, 'getPrincipalById');
+                                    memo = encoder.encode("RoyaltyReward");
+                                    const royaltyprincipal = royaltyprincipalData[0].principal;
+                                    const royaltyUserPrincipal = Principal.fromText(royaltyprincipal);
+                                    const royaltyNowMs = Date.now(); 
+                                    const royaltyNowNs = BigInt(royaltyNowMs) * 1_000_000n;
+                                    this.logger.log(`Royalty principal ${royaltyUserPrincipal} amount ${royaltyAmount}, memo ${memo}, nowNs ${royaltyNowNs}`);
+                                    await Promise.race([
+                                        this.canisterService.mintActor.mintForUser(OWNER_KEY, royaltyUserPrincipal, Math.floor(royaltyAmount), [memo], [royaltyNowNs]),
+                                        new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout mintForUser')), 5000))]);
+
+                                    await new Promise(resolve => setTimeout(resolve, 6000));
+                                } catch (error) {
+                                    this.logger.error(`mint: ${error} :: royaltyId ${royaltyIdList[idx]}`);
+                                    continue;
+                                }
+                                
+                            }
+                        } catch (error) {
+                            this.logger.error(`mint:`, error);
+                        }
+                        
+                    } catch(error) {
+                        this.logger.error(`error type ${type} idx ${i}`);   
+                        continue;
+                    } 
+                }
+                return this.addIplMintbatchMV('MV', idx + 100);
+            } else if ( type === 'WD') {
+                let principal: any;
+                let amount: number = 0;
+                const formData = new FormData();
+                formData.append('idx', idx);
+
+                const response = await axios.post(
+                'https://paykhan.org/nftAudio/webDramaUnlockList',
+                formData,
+                {
+                    headers: formData.getHeaders()
+                }
+                );
+
+                this.logger.log(`response ${JSON.stringify(response.data)}`);
+                this.logger.log(`https://paykhan.org/nftAudio/webDramaUnlockList idx ::: ${idx}`);
+                for(let i = 0; i < 100; i ++) {
+                    try{    
+                        this.logger.log(`response idx ::: ${i} ${JSON.stringify(response.data[i])}`);
+                        const id = response.data[i].member_id.replace(/[^a-zA-Z0-9._@-]/g, 'd');
+                        const principalData = await this.workerService.getPrincipalById(1, id, 'getPrincipalById');
+                    
+                    
+                    principal= principalData[0].principal;
+                    this.logger.log(`principal ::: ${principal}`);
+                    amount= Number(response.data[i].amount);
+                    
+                    try {
+                        const encoder = new TextEncoder();
+                        const nowMs = Date.now(); 
+                        
+                        const nowNs = BigInt(nowMs) * 1_000_000n;
+                            let memo: Uint8Array;
+                            
+                            const userPrincipal = Principal.fromText(principal);
+                            const royaltyId = response.data[i].episode_member_id.replace(/[^a-zA-Z0-9._@-]/g, 'd');
+                            
+                            memo = encoder.encode("UnlockReward");
+                            
+                            this.logger.log(`principal ${userPrincipal} amount ${amount}, memo ${memo}, nowNs ${nowNs}`);
+                            this.logger.log(`royaltyIdList ${royaltyId}`); 
+                            await Promise.race([
+                                this.canisterService.mintActor.mintForUser(OWNER_KEY, userPrincipal, Math.floor(amount), [memo], [nowNs]),
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout mintForUser')), 5000))]);
+                            await new Promise(resolve => setTimeout(resolve, 6000));
+                            const royaltyAmount = Math.floor(amount);
+                            const royaltyprincipalData = await this.workerService.getPrincipalById(1, royaltyId, 'getPrincipalById');
+                            memo = encoder.encode("RoyaltyReward");
+                            const royaltyprincipal = royaltyprincipalData[0].principal;
+                            const royaltyUserPrincipal = Principal.fromText(royaltyprincipal);
+                            const royaltyNowMs = Date.now(); 
+                            const royaltyNowNs = BigInt(royaltyNowMs) * 1_000_000n;
+                            this.logger.log(`Royalty principal ${royaltyUserPrincipal} amount ${royaltyAmount}, memo ${memo}, nowNs ${royaltyNowNs}`);
+                            await Promise.race([
+                                this.canisterService.mintActor.mintForUser(OWNER_KEY, royaltyUserPrincipal, Math.floor(royaltyAmount), [memo], [royaltyNowNs]),
+                                new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout mintForUser')), 5000))]);
+
+                            await new Promise(resolve => setTimeout(resolve, 6000));
+                        } catch (error) {
+                            this.logger.error(`mint:`, error);
+                        }
+                        
+                    } catch(error) {
+                        this.logger.error(`error type ${type} idx ${i}`);   
+                        continue;
+                    } 
+                }
+                return this.addIplMintbatchMV('WD', idx + 100);
+                // return null;
+            }
+        }
+    
 
     roundTo(num:number, digits: number) {
         const factor = Math.pow(10, digits);
@@ -1671,11 +1861,11 @@ export class AppService {
            return b32.match(/.{1,5}/g)?.join('-') ?? b32;
         } else if (buf.length === 10) {
             buf = Buffer.from([
-            10, 167, 131, 161,  38, 156, 217,
+             10, 167, 131, 161,  38, 156, 217,
             171,   6,  51,  38, 253, 114, 227,
             131, 105, 214,  49, 124,  41, 188,
             208, 212, 127,  12, 205, 120,  12,
-                2
+              2
             ]);
 
             const crc = Buffer.alloc(4);
@@ -1756,20 +1946,6 @@ export class AppService {
 
         let lastError: any;
 
-        // retry
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            try {
-                await this.canisterService.traffic2Actor.addVerificationUnlockListDataV2(ownerKey, JSON.stringify(jsonArray));
-                break; // next chunk
-            } catch (err) {
-                lastError = err;
-                console.error(`addVerificationUnlockListData ( ${attempt}/${maxRetries}):`, err);
-                if (attempt < maxRetries) {
-                    await new Promise((res) => setTimeout(res, delayMs));
-                }
-            }
-        }
-
         if (lastError) {
             throw lastError;
         }
@@ -1780,12 +1956,12 @@ export class AppService {
     const now = moment().utc();
     const tsSeconds = moment().unix();
 
-    let principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
+    let principal = await this.workerService.getPrincipalById(partnerIdx, id, 'getPrincipalById');
     if(principal[0] === undefined){
         if(partnerIdx === 2) partnerIdx = 5; //new ton member
         else if (partnerIdx === 3) partnerIdx = 6;
         
-        principal = await this.canisterService.memberActor.getMemberByPartnerIdxAndUser(partnerIdx, id);
+        principal = await this.workerService.getPrincipalById(partnerIdx, id, 'getPrincipalById');
     }
     
     
@@ -1800,12 +1976,12 @@ export class AppService {
                 .catch((err) => console.error("incrementMusicWorkInfoUnlockCount:", err));
         }
         
-        this.logger.log("principal>>>>>>>>>>", principal[0].principle);
+        this.logger.log("principal>>>>>>>>>>", JSON.stringify(principal));
 
         const jsonArray = chunk.map((idx) => ({
             partner_idx: partnerIdx,
             idx,
-            principal: principal[0].principle,
+            principal: principal.principal,
             unlock_date: now.format('YYYY-MM-DD'),
             unlocked_at: now.format('YYYY-MM-DD HH:mm:ss'),
             unlocked_ts: tsSeconds,
@@ -1814,20 +1990,6 @@ export class AppService {
 
         let lastError: any;
 
-        // retry
-        for (let attempt = 1; attempt <= maxRetries; attempt++) {
-            try {
-                await this.canisterService.traffic2Actor.addVerificationUnlockListDataV2(ownerKey, JSON.stringify(jsonArray));
-                break; // next chunk
-            } catch (err) {
-                lastError = err;
-                console.error(`addVerificationUnlockListData ( ${attempt}/${maxRetries}):`, err);
-                if (attempt < maxRetries) {
-                    await new Promise((res) => setTimeout(res, delayMs));
-                }
-            }
-        }
-
         if (lastError) {
             throw lastError;
         }
@@ -1835,8 +1997,11 @@ export class AppService {
     }
 
 
+
     async getMigration(startIdx: number, endIdx: number = 9999999, cnt: number, retryCnt = 0): Promise<any> {
+        
         let allTx: any[] = [];
+        const bnbWhiteListUrl = this.configService.get<string>('BNB_WHITELIST_URL') || '';
 
         if(startIdx > endIdx) {
             this.logger.log(`Migration Completed ::: startIdx: ${startIdx}, endIdx: ${endIdx}`);
@@ -1848,8 +2013,23 @@ export class AppService {
                     length: cnt
             });
         try {
-            const transaction = await this.canisterService.tokenArcActor.get_transactions(GetTransactionLength);
-            let mainList = this.parseTransactions(transaction.transactions, "scan", GetTransactionLength.start);
+            const archiveInfo = await this.canisterService.tokenActor.archives();
+            let mainList: any[] = [];
+            this.logger.log(`>>>>>>>>>>>>>>>> start ${archiveInfo[0].block_range_start} end ${archiveInfo[0].block_range_end}`);
+            for (const archive of archiveInfo) { 
+                this.logger.log(`>>>>>>>>>>>>>>>> start fetching archive for idx ${archive.canister_id}`);
+                if(GetTransactionLength.start > archive.block_range_end || GetTransactionLength.start < archive.block_range_start) {
+                    this.logger.log(`archive skip idx ${GetTransactionLength.start} canister_id ${archive.canister_id}`);
+                    continue;
+                }
+
+                const transactionArc = await this.canisterService.createArchiveActor(archive.canister_id).get_transactions(GetTransactionLength);
+                const parsed = this.parseTransactions(transactionArc.transactions, "scan", GetTransactionLength.start);
+                if (Array.isArray(parsed)) {
+                    mainList.push(...parsed);
+                }
+            };
+
             allTx = [...mainList];
             this.logger.log(`startIdx ::: ${startIdx} totalTransaction ::: ${allTx.length}`);
             if(allTx.length <= cnt && allTx.length > 0) {
@@ -1873,6 +2053,7 @@ export class AppService {
             }
         } catch (error) {
             this.logger.error(`Error: ${error}`);
+            await new Promise(resolve => setTimeout(resolve, 5000));
             return this.getMigration(startIdx, endIdx, cnt);
         }
 
@@ -1889,25 +2070,39 @@ export class AppService {
             try {
                 if(stringifiedTx.length === 0) {
                     this.logger.log(`No Transactions Found, Moving to Next Batch ::: startIdx: ${startIdx + cnt}`);
+                    await new Promise(resolve => setTimeout(resolve, 3000));
                     return this.getMigration(startIdx + stringifiedTx.length, endIdx, cnt);
                 }
-                const whitelistRes =await axios.post('http://10.30.110.219/api/v1/contracts/whitelist', {
+                const whitelistRes =await axios.post(bnbWhiteListUrl, {
                     requests: stringifiedTx                
-                })
+                });
+
+                for(const tx of stringifiedTx) {
+                   await this.db.iplMintHistoryRepo.save({
+                        idx: tx.index,
+                        principal: tx.to,
+                        amount: tx.amount,
+                        reward_type: tx.type,
+                        created_at: new Date(tx.timestamp)
+                    });
+                }
+
                 this.logger.log(`whitelistRes: ${JSON.stringify(whitelistRes?.data)}`);
                 if(whitelistRes?.data?.success === true) {
+                    await new Promise(resolve => setTimeout(resolve, 5000));
                     return this.getMigration(startIdx+stringifiedTx.length, endIdx, cnt);
                 } else {
                     if (retryCnt < 1) {
+                        await new Promise(resolve => setTimeout(resolve, 5000));
                         return this.getMigration(startIdx, endIdx, cnt, retryCnt + 1);
                     } else {
+                        await new Promise(resolve => setTimeout(resolve, 5000));
                         return this.getMigration(startIdx+stringifiedTx.length, endIdx, cnt);
                     }
                 }
             } catch (error) {
                 this.logger.error(`whitelistRes Error: ${error}`);
                 await new Promise(resolve => setTimeout(resolve, 5000));
-
                 if (retryCnt < 1) {
                     return this.getMigration(startIdx, endIdx, cnt, retryCnt + 1);
                 } else {

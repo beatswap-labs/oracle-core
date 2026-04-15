@@ -11,4 +11,8 @@ export class beatSwapDto {
     startIdx: number;
     endIdx: number;
     cnt: number;
+    data: any;
+    address: string;
+    owner: string;
+    spender: string;
 }

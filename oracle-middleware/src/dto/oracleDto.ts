@@ -9,6 +9,7 @@ export class oracleDto {
     @Type(() => Number)
     genreIdx: number;
     musician: string;
+    nickname: string;
     music_publisher: string;
     song_thumbnail: string;
     op_neighboring_token_address: string;
@@ -28,10 +29,12 @@ export class oracleDto {
     unlock_date: string;
     unlocked_at: string;
     amount: number;
+    etherAmount: string;
     year: number;
     month: number;
     startTs: number;
     endTs: number;
     mintType: string;
     principal: string;
+    type: string;
 }

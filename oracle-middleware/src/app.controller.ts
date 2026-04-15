@@ -1,17 +1,24 @@
-import { Controller, Get, Post, Body, Req, Logger, ValidationPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Req, Logger, Query } from '@nestjs/common';
 import { AppService } from './app.service';
 import { WorkerService } from './service/worker.service';
 import { oracleDto } from './dto/oracleDto';
 import { Request } from 'express';
+import { ConfigService } from '@nestjs/config';
 import * as moment from 'moment-timezone';
 
 @Controller('oracle')
 export class AppController {
-    constructor(private readonly appService: AppService, private readonly workerService: WorkerService) {}
+    constructor(private configService: ConfigService, private readonly appService: AppService, private readonly workerService: WorkerService) {
+        const list = this.configService.get<string>('BLOCK_PRINCIPAL');
+        this.BLACKLISTED_PRINCIPALS = list ? [list] : [];
+    }
 
     private readonly logger = new Logger(AppController.name);
-    private recentRequests = new Map<string, number>(); // principal -> timestamp
-    private REQUEST_INTERVAL = 43200000; // 12시간
+    private preStreamRequests = new Map<string, number>(); // principal -> timestamp
+    private streamRequests = new Map<string, number>(); // principal -> timestamp
+    private REQUEST_INTERVAL = 43200000; // 12 hours
+    private STREAM_INTERVAL = 12000; // 12 seconds
+    private BLACKLISTED_PRINCIPALS: string[] = [];
 
     @Post('test')
     async test() {
@@ -25,6 +32,15 @@ export class AppController {
         this.logger.log(`getMusicWorkInfos Call ip :: ${req.socket.remoteAddress}`);
 
         return this.appService.getMusicWorkInfosByOwner();
+    }
+
+     //Music info list
+    @Post('getArtistMusicInfo')
+    async getArtistMusicInfo(@Body() body: oracleDto) {
+        
+        this.logger.log(`getArtistMusicInfo artist :: ${body.nickname}`);
+
+        return this.appService.getArtistMusicInfo(body.nickname);
     }
 
     //Music total count
@@ -98,10 +114,10 @@ export class AppController {
 
     @Post('updateMusicWorkInfo')
     async updateMusicWorkInfo(@Body() body: oracleDto) {
-        this.logger.log(`updateMusicWorkInfo Call title : ${body.idxList} / ${body.unlock_count_list}`);
+        this.logger.log(`updateMusicWorkInfo Call title : ${body.idxList}`);
 
         try {
-            await this.appService.updateMusicWorkInfo(body.idxList, body.unlock_count_list);
+            await this.appService.updateMusicWorkInfo(body.idxList);
             return { success: true };
         } catch(e) {
             this.logger.error("error", e);
@@ -162,8 +178,7 @@ export class AppController {
             
         try {
             const data = await this.appService.addVerificationUnlockListTK(body.partnerIdx, body.idxList, body.id);
-
-             return { success: true , data};
+            return { success: true , data};
         } catch(e) {
             this.logger.error("error",e);
             return { success: false };
@@ -171,6 +186,7 @@ export class AppController {
 
     }
 
+    //Add Oracle Unlock
     @Post('addVerificationUnlockListOra')
     async addVerificationUnlockListOra(@Req() req: Request, @Body() body: oracleDto) {
         const clientIp = req.ip?.replace('::ffff:', '');
@@ -186,13 +202,41 @@ export class AppController {
 
     }
 
-
+    //Add User Play Data
     @Post('addUserPlayData')
     async addUserPlayData(@Body() body: oracleDto) {
         this.logger.log(`addUserPlayData Call partnerIdx :: ${body.partnerIdx}, idx :: ${body.id} musicIdx :: ${body.idx}`);
 
         try {
             const data = await this.appService.addUserPlayData(body.partnerIdx, body.id, body.idx);
+            return { success: true , data};
+        } catch(e) {
+            this.logger.error("error",e);
+            return { success: false };
+        }
+
+    }
+
+    @Post('addSongData')
+    async addSongData(@Body() body: oracleDto) {
+        this.logger.log(`addSongData Call songIdx :: ${body.idx}`);
+
+        try {
+            const data = await this.appService.addPaykhanMusicWorkInfo(body.idx);
+            return { success: true , data};
+        } catch(e) {
+            this.logger.error("error",e);
+            return { success: false };
+        }
+
+    }
+
+    @Post('addMusicVideoData')
+    async addMusicVideoData(@Body() body: oracleDto) {
+        this.logger.log(`addMusicVideoData Call songIdx :: ${body.idx}`);
+
+        try {
+            const data = await this.appService.addMusicVideoData(body.idx);
             return { success: true , data};
         } catch(e) {
             this.logger.error("error",e);
@@ -263,30 +307,61 @@ export class AppController {
     async addMint(@Body() body: oracleDto) {
         this.logger.log(`addMint Call :: Type :: ${body.mintType} ID :: ${body.id} partnerIdx :: ${body.partnerIdx} amount :: ${body.amount}`);
 
-        if(body.amount <= 0 || body.amount > 3000) {
-            this.logger.log(`rejected principal ::: ${body.principal}`);
-            return { success: false, message: 'reject request param' };
+        if (this.BLACKLISTED_PRINCIPALS.includes(body.principal)) {
+            this.logger.warn(`Blocked principal attempt: ${body.principal}`);
+            return {
+            success: false,
+            message: 'This principal is blocked.',
+            };
         }
 
-        try {
-            const response = await this.workerService.mintToken(body.id, body.partnerIdx, body.mintType, body.amount);
-            return { success: true , response};
-        } catch(e) {
-            this.logger.error("error",e);
-            return { success: false };
+        if(body.amount <= 0 || body.amount > 3000) {
+            this.logger.log(`rejected principal ::: ${body.principal}`);
+            return { error: 'reject request param' };
         }
+
+        if(body.mintType === 'Stream') {
+            const now = Date.now();
+            const lastTime = this.streamRequests.get(body.principal) || 0;
+
+            if (now - lastTime < this.STREAM_INTERVAL) {
+                // duplicate request
+                this.logger.log(`Duplicate mint request blocked for principal: ${body.principal}`);
+                return { success: false, message: 'Too many requests' };
+            }
+
+            this.streamRequests.set(body.principal, now);
+            
+            //memory cleanup
+            setTimeout(() => this.streamRequests.delete(body.principal), this.STREAM_INTERVAL);
+
+                body.mintType = 'Stream';
+
+        } 
+
+        const res = await this.workerService.mintToken(body.id, body.partnerIdx, body.mintType, body.amount);
+        return res;
     }
 
     @Post('addOracleMint')
     async addOracleMint(@Body() body: oracleDto) {
-        this.logger.log(`addOracleMint Call :: Type :: ${body.mintType} ID :: ${body.principal} songIdxList :: ${body.unlock_total_count}`);
+        this.logger.log(`addOracleMint Call :: Type :: ${body.mintType} ID :: ${body.principal} unlock_total_count :: ${body.unlock_total_count}`);
+
+        if (this.BLACKLISTED_PRINCIPALS.includes(body.principal)) {
+            this.logger.warn(`Blocked principal attempt: ${body.principal}`);
+            return {
+            success: false,
+            message: 'This principal is blocked.',
+            };
+        }
     
         let amount;
+        let res: any;
         
         if(body.mintType === 'preStream') {
             amount = 1;
             const now = Date.now();
-            const lastTime = this.recentRequests.get(body.principal) || 0;
+            const lastTime = this.preStreamRequests.get(body.principal) || 0;
 
             if (now - lastTime < this.REQUEST_INTERVAL) {
                 // duplicate request
@@ -294,37 +369,41 @@ export class AppController {
                 return { success: false, message: 'Too many requests' };
             }
 
-            this.recentRequests.set(body.principal, now);
+            this.preStreamRequests.set(body.principal, now);
             
             //memory cleanup
-            setTimeout(() => this.recentRequests.delete(body.principal), this.REQUEST_INTERVAL);
+            setTimeout(() => this.preStreamRequests.delete(body.principal), this.REQUEST_INTERVAL);
 
-            try {
                 body.mintType = 'Stream';
 
-                await this.workerService.mintTokenForOracle(body.principal, body.mintType, amount);
-                return { success: true };
-            } catch(e) {
-                this.logger.error("error",e);
-                return { success: false };
-            }
+            res = await this.workerService.mintTokenForOracle(body.principal, body.mintType, amount);
+            return res;
         } else {
-
-            try {
-                if(body.mintType === 'Unlock') {
-                    amount = 100;
-                    for (let i = 0; i < body.unlock_total_count; i++) {
-                        await this.workerService.mintTokenForOracle(body.principal, body.mintType, amount);
-                    }
-                } else if (body.mintType === 'Stream'){
-                    amount = 1;
-                    await this.workerService.mintTokenForOracle(body.principal, body.mintType, amount);
+            if(body.mintType === 'Unlock') {
+                amount = 100;
+                for (let i = 0; i < body.unlock_total_count; i++) {
+                    res = await this.workerService.mintTokenForOracle(body.principal, body.mintType, amount);
                 }
-                return { success: true };
-            } catch(e) {
-                this.logger.error("error",e);
-                return { success: false };
+            } else if (body.mintType === 'Stream'){
+                amount = 1;
+
+                const now = Date.now();
+                const lastTime = this.streamRequests.get(body.principal) || 0;
+
+                if (now - lastTime < this.STREAM_INTERVAL) {
+                    // duplicate request
+                    this.logger.log(`Duplicate mint request blocked for principal: ${body.principal}`);
+                    return { success: false, message: 'Too many requests' };
+                }
+
+                this.streamRequests.set(body.principal, now);
+            
+                //memory cleanup
+                setTimeout(() => this.streamRequests.delete(body.principal), this.STREAM_INTERVAL);
+
+                res = await this.workerService.mintTokenForOracle(body.principal, body.mintType, amount);
             }
+            return res;
         }
     }
 
@@ -337,10 +416,81 @@ export class AppController {
         return response;
     }
 
+    //addIplMintbatch
+    @Post('addIplMintbatchMV')
+    async addIplMintbatchMV(@Body() body: oracleDto) {
+        this.logger.log(`addIplMintbatchMV Call ::  ${body.type} || ${body.idx}`);
+        const response = await this.appService.addIplMintbatchMV(body.type, body.idx);
+        return response;
+    }
+
     //ipl balance
     @Post('getIplBalance')
     async getIplBalance(@Body() body: oracleDto) {
         this.logger.log(`getIplBalance Call ::: ${body.principal}`);
         return this.appService.getIplBalance(body.principal);
     }
+
+
+    //ipl balance
+    @Post('getIplHistory')
+    async getIplHistory(@Body() body: oracleDto) {
+        this.logger.log(`getIplHistory Call ::: ${body.idx}`);
+        return this.workerService.getIplHistory(body.idx, 'getIplHistory');
+    }
+
+    //partnerIdx 1 address update
+    @Post('updateAddress')
+    async updateAddress(@Body() body: oracleDto) {
+        this.logger.log(`updateAddress Call ::: ${body.id} || ${body.address})`);
+        return this.workerService.updateAddress(body.id, body.address, 'updateAddress');
+    }
+
+    @Post('updateAddressBatch')
+    async updateAddressBatch(@Body() body: oracleDto) {
+        this.logger.log(`updateAddressBatch Call`);
+        return this.workerService.updateAddressBatch('updateAddressBatch');
+    }
+
+    @Get('getStaker')
+    async getStaker(@Query('contract_address') contractAddress: string) {
+        return this.appService.getStaker(contractAddress);
+    }
+
+    @Post('getIpl')
+    async getIpl(@Body() body: oracleDto) {
+        return this.workerService.getIpl(body.year, body.month);
+    }
+
+    @Post('getSnapshotBalance')
+    async getTestBalance(@Body() body: oracleDto) {
+        return this.workerService.getSnapshotBalance(body.year, body.month, 'balance');
+    }
+
+    @Post('insertTemp') 
+    async insertTemp(@Body() body: { ids: string[]; etherAmounts: string[] }) {
+        const { ids, etherAmounts } = body;
+
+        if (ids.length !== etherAmounts.length) {
+            throw new Error('ids and etherAmounts list length not same');
+        }
+
+        this.logger.log(`insertTemp Call ::: count=${ids.length}`);
+
+        const results: any[] = [];
+
+        for (let i = 0; i < ids.length; i++) {
+            const id = ids[i];
+            const etherAmount = etherAmounts[i];
+
+            this.logger.log(`insertTemp Item ::: ${id} || ${etherAmount}`);
+
+            const result = await this.workerService.insertTemp(id, etherAmount, 'insertTemp');
+
+            results.push(result);
+        }
+
+        return results;
+    }
+
 }

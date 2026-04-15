@@ -9,6 +9,7 @@ import { BatchService } from './batch/batch.service';
 import { TelegramService } from './telegram/telegram.service';
 import { WorkerService } from './service/worker.service';
 import { CanisterService } from './service/canister.service';
+import { ListnerService } from './service/listner.service';
 
 @Module({
   imports: [
@@ -18,6 +19,6 @@ import { CanisterService } from './service/canister.service';
     }),
   ],
   controllers: [AppController, BeatSwapController],
-  providers: [BatchSchedule, BatchService, AppService, TelegramService, CanisterService, WorkerService],
+  providers: [BatchSchedule, BatchService, AppService, TelegramService, CanisterService, WorkerService, ListnerService],
 })
 export class AppModule {}

@@ -12,7 +12,7 @@ export class BatchSchedule {
     
 
     // @Cron('*/30 * * * * *') //Test
-    // @Cron('0 10 17 * * *') //Daily 17:10
+    // @Cron('0 10 18 * * *') //Daily 18:10
     async addDailyRightsHolder() {
         const now = moment().tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss');
         this.logger.log(`addDailyRightsHolder Batch Start : ${now} (KST)`);
@@ -58,7 +58,7 @@ export class BatchSchedule {
     }
 
     // @Cron('*/30 * * * * *') //Test
-    // @Cron('0 0 */1 * * *') // 1 hour
+    @Cron('0 0 */1 * * *') // 1 hour
     async updatePending() {
         const now = moment().tz('Asia/Seoul').format('YYYY-MM-DD HH:mm:ss');
         this.logger.log(`updatePending Batch Start : ${now} (KST)`);
