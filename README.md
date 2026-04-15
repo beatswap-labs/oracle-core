@@ -73,7 +73,9 @@ FrontEnd (beatswap.io)
 | MEMBERSNAP_CANISTER | ccyhz-eqaaa-aaaab-qb5oq-cai        |
 | HOLDER_CANISTER     | cq6qa-iaaaa-aaaab-qb5nq-cai        |
 | TOKEN_CANISTER      | eb7hz-ryaaa-aaaae-ab2iq-cai        |
-| TOKEN_ARC_CANISTER  | dwj33-qiaaa-aaaae-ab5ga-cai        |
+| TOKEN_ARC1_CANISTER | dwj33-qiaaa-aaaae-ab5ga-cai        |
+| TOKEN_ARC2_CANISTER | 7tdkf-iaaaa-aaaae-ac3ya-cai        |
+| TOKEN_ARC3_CANISTER | wg43r-zyaaa-aaaae-aggya-cai        |
 
 ---
 
